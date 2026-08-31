@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+*.egg
+
+# Node
+node_modules/
+.next/
+out/
+*.log
+
+# Docker
+.dockerignore
+
+# Data (keep the directory, not contents)
+data/
+!data/.gitkeep
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

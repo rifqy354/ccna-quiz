@@ -1,0 +1,18 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; background: #f9fafb; color: #111827; }
+a { color: #2563eb; text-decoration: none; }
+a:hover { text-decoration: underline; }
+input, select, textarea { display: block; width: 100%; padding: 0.5rem; margin-top: 0.25rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
+label { font-weight: 500; display: block; }
+button { padding: 0.5rem 1rem; cursor: pointer; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 1rem; transition: background 0.15s; }
+button:hover { background: #1d4ed8; }
+button:disabled { background: #9ca3af; cursor: default; }
+button.secondary { background: #6b7280; }
+button.secondary:hover { background: #4b5563; }
+button.danger { background: #dc2626; }
+button.danger:hover { background: #b91c1c; }
+button.success { background: #10b981; }
+button.success:hover { background: #059669; }
+.card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; }
+.container { max-width: 900px; margin: 0 auto; padding: 0 1rem; }
+.page { padding: 2rem 0; }

@@ -16,6 +16,10 @@ services:
     restart: unless-stopped
     networks:
       - ccna
+    deploy:
+      resources:
+        limits:
+          memory: 64M
 
   frontend:
     build:
@@ -30,14 +34,18 @@ services:
       - ccna
     depends_on:
       - backend
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ccna_backend
-    command: >
-      sh -c "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    # 1 gunicorn worker (saves ~200MB vs multiple uvicorn workers on 1GB RAM)
+    command: gunicorn app.main:app --bind 0.0.0.0:8000 --workers 1 --worker-class uvicorn.workers.UvicornWorker --access-logfile - --error-logfile -
     volumes:
       - ./data:/app/data
     environment:
@@ -47,6 +55,10 @@ services:
     restart: unless-stopped
     networks:
       - ccna
+    deploy:
+      resources:
+        limits:
+          memory: 384M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
