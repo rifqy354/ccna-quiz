@@ -1,0 +1,1 @@
+"""CCNA Quiz Backend API."""
