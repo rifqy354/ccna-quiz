@@ -76,8 +76,8 @@ def _letters(raw: str) -> str:
 
 
 def _answer_list(zf: zipfile.ZipFile, vol: str) -> list[tuple[str, str]]:
-    """Parse vol*_app_c.xhtml -> [(letters, explanation], in DIKTA order."""
-    raw = _read(f"OEBPS/xhtml/{vol}_app_c.xhtml", zf)
+    """Parse vol*_appc.xhtml -> [(letters, explanation], in DIKTA order."""
+    raw = _read(f"OEBPS/xhtml/{vol}_appc.xhtml", zf)
     if not raw:
         return []
     soup = BeautifulSoup(raw, "lxml")
@@ -99,9 +99,9 @@ def _answer_list(zf: zipfile.ZipFile, vol: str) -> list[tuple[str, str]]:
 
 
 def _parse_body(
-    body, chapter_num: int, answers: list[tuple[str, str]]
+    vol: str, body, chapter_num: int, answers: list[tuple[str, str]]
 ) -> list[ExtractedQuestion]:
-    domain_info = _OCG_DOMAIN_MAP.get(("vol1", chapter_num))
+    domain_info = _OCG_DOMAIN_MAP.get((vol, chapter_num))
     if not domain_info:
         return []
     domain_num, domain_name = domain_info
@@ -115,7 +115,7 @@ def _parse_body(
             i += 1
             continue
         text = el.get_text(separator=" ", strip=True)
-        m = re.match(r"^\d+\.\s+(.*)", text)
+        m = re.match(r"^\d+\s+\.\s+(.*)", text)
         if not m:
             i += 1
             continue
@@ -142,11 +142,12 @@ def _parse_body(
                     for c in ans_let.upper() if c.isalpha()]
         if len(pos_list) == 1:
             correct = chr(ord("A") + pos_list[0] - 1)
+        elif len(pos_list) > 1:
+            correct = "".join(chr(ord("A") + p - 1) for p in pos_list)
+            pos_chr = ", ".join(chr(ord("A") + p - 1) for p in pos_list)
+            expl = f"[Multi: {pos_chr}] {expl}"
         else:
-            correct = (chr(ord("A") + pos_list[0] - 1) if pos_list else "A"
-            if len(pos_list) > 1:
-                pos_chr = ", ".join(chr(ord("A") + p - 1) for p in pos_list)
-                expl = f"[Multi: {pos_chr}] {expl}"
+            correct = "A"
         a = _s(opts[0]) if len(opts) > 0 else ""
         b = _s(opts[1]) if len(opts) > 1 else ""
         c = _s(opts[2]) if len(opts) > 2 else ""
@@ -159,7 +160,7 @@ def _parse_body(
             question_text=q_text, question_image=None,
             option_a=a, option_b=b, option_c=c, option_d=d,
             correct_option=correct, explanation=_s(expl),
-            ocg_chapter_ref=f"vol1_ch{chapter_num:02d}",
+            ocg_chapter_ref=f"{vol}_ch{chapter_num:02d}",
             ocg_section_ref=f"ch{chapter_num:02d}lev1sec1",
             difficulty=2,
         ))
@@ -171,18 +172,22 @@ def parse_ocg_epub(epub_path: str, images_dir: str) -> list[ExtractedQuestion]:
     images_path = Path(images_dir)
     images_path.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(epub_path) as zf:
-        chapters: list[tuple[int, str]] = []
+        # Build answer lookup per volume: vol → [(letters, explanation), ...]
+        vol_answers: dict[str, list[tuple[str, str]]] = {
+            vol: _answer_list(zf, vol) for vol in ("vol1", "vol2")
+        }
+        chapters: list[tuple[str, int, str]] = []
         for fname in zf.namelist():
-            m = re.match(r"OEBPS/xhtml/vol\d+_ch(\d+)\.xhtml$", fname)
+            m = re.match(r"OEBPS/xhtml/(vol\d+)_ch(\d+)\.xhtml$", fname)
             if m:
-                chapters.append((int(m.group(1)), fname))
+                chapters.append((m.group(1), int(m.group(2)), fname))
         all_q: list[ExtractedQuestion] = []
-        for chapter_num, fname in sorted(chapters):
+        for vol, chapter_num, fname in sorted(chapters, key=lambda x: (x[0], x[1])):
             raw = _read(fname, zf)
             if not raw:
                 continue
             soup = BeautifulSoup(raw, "lxml")
             body = soup.find("body")
             if body:
-                all_q.extend(_parse_body(body, chapter_num, []))
+                all_q.extend(_parse_body(vol, body, chapter_num, vol_answers.get(vol, [])))
     return all_q
