@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///data/ccna.db"
     PLAYER_COOKIE_NAME: str = "ccna_player"
     PLAYER_COOKIE_MAX_AGE: int = 31_536_000
-    PLAYER_COOKIE_DOMAIN: str | None = "quiz.email2.my.id"
+    PLAYER_COOKIE_DOMAIN: str | None = None
+    PLAYER_COOKIE_SECURE: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -36,6 +37,23 @@ async def test_create_player_sets_secure_cookie_and_returns_public_profile(clien
     me = await client.get("/api/player/me")
     assert me.status_code == 200
     assert me.json() == {"name": "Rifqy"}
+
+
+async def test_local_player_cookie_can_be_sent_over_http(client, monkeypatch):
+    monkeypatch.setattr(
+        "app.routers.players.get_settings",
+        lambda: SimpleNamespace(
+            PLAYER_COOKIE_NAME="ccna_player",
+            PLAYER_COOKIE_MAX_AGE=31_536_000,
+            PLAYER_COOKIE_DOMAIN=None,
+            PLAYER_COOKIE_SECURE=False,
+        ),
+    )
+
+    response = await client.post("/api/player", json={"name": "Local Player"})
+
+    assert response.status_code == 201
+    assert "Secure" not in response.headers["set-cookie"]
 
 
 async def test_duplicate_display_names_create_distinct_players(client):

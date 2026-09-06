@@ -46,6 +46,8 @@ services:
       - DATABASE_URL=sqlite+aiosqlite:///data/ccna.db
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       - JWT_ALGORITHM=HS256
+      - PLAYER_COOKIE_NAME=${PLAYER_COOKIE_NAME:-ccna_player}
+      - PLAYER_COOKIE_MAX_AGE=${PLAYER_COOKIE_MAX_AGE:-31536000}
     restart: unless-stopped
     networks:
       - ccna

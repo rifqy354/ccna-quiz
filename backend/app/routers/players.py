@@ -41,7 +41,7 @@ async def create_player(data: PlayerCreate, response: Response):
         max_age=settings.PLAYER_COOKIE_MAX_AGE,
         expires=datetime.now(timezone.utc)
         + timedelta(seconds=settings.PLAYER_COOKIE_MAX_AGE),
-        secure=True,
+        secure=settings.PLAYER_COOKIE_SECURE,
         httponly=True,
         samesite="lax",
         domain=settings.PLAYER_COOKIE_DOMAIN,

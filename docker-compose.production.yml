@@ -14,3 +14,6 @@ services:
   backend:
     build:
       network: host
+    environment:
+      - PLAYER_COOKIE_DOMAIN=${PLAYER_COOKIE_DOMAIN:-quiz.email2.my.id}
+      - PLAYER_COOKIE_SECURE=true
