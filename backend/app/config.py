@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     DATABASE_URL: str = "sqlite+aiosqlite:///data/ccna.db"
+    PLAYER_COOKIE_NAME: str = "ccna_player"
+    PLAYER_COOKIE_MAX_AGE: int = 31_536_000
+    PLAYER_COOKIE_DOMAIN: str | None = "quiz.email2.my.id"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

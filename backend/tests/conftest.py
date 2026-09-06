@@ -10,6 +10,7 @@ async def isolated_application(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "_settings", config.Settings(
         _env_file=None, DATABASE_URL=str(tmp_path / "application.db"),
         JWT_SECRET_KEY="test-only-secret",
+        PLAYER_COOKIE_DOMAIN=None,
     ))
     monkeypatch.setattr(sessions, "_session_cache", {})
     await database.init_db()

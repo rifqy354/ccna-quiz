@@ -164,7 +164,7 @@ git commit -m "feat: add guest player and challenge schema"
 - Produces fixture: `player(client, name='Rifqy') -> dict` for backend tests.
 - Cookie name: `ccna_player`; lifetime: 31,536,000 seconds.
 
-- [ ] **Step 1: Write guest creation and cookie verification tests**
+- [x] **Step 1: Write guest creation and cookie verification tests**
 
 Create tests for trimming, duplicate names, invalid lengths/control characters, cookie flags, returning identity, tampering, and the absence of private fields:
 
@@ -188,13 +188,13 @@ async def test_duplicate_display_names_create_distinct_players(client):
     assert second.cookies['ccna_player'] != first_cookie
 ```
 
-- [ ] **Step 2: Run the new tests and confirm missing routes fail**
+- [x] **Step 2: Run the new tests and confirm missing routes fail**
 
 Run: `PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_players.py -q`
 
 Expected: FAIL with 404 responses for `/api/player`.
 
-- [ ] **Step 3: Add guest configuration and Pydantic contracts**
+- [x] **Step 3: Add guest configuration and Pydantic contracts**
 
 Add `PLAYER_COOKIE_NAME = "ccna_player"`, `PLAYER_COOKIE_MAX_AGE = 31_536_000`, and `PLAYER_COOKIE_DOMAIN = "quiz.email2.my.id"` to `Settings`. Add these models:
 
@@ -214,7 +214,7 @@ class PlayerResponse(BaseModel):
     name: str
 ```
 
-- [ ] **Step 4: Implement cookie signing and guest lookup**
+- [x] **Step 4: Implement cookie signing and guest lookup**
 
 Use the existing JWT secret with a dedicated token type and no bearer headers:
 
@@ -245,7 +245,7 @@ async def get_current_player(ccna_player: str | None = Cookie(default=None)) -> 
         return dict(row)
 ```
 
-- [ ] **Step 5: Implement player creation as one transaction**
+- [x] **Step 5: Implement player creation as one transaction**
 
 Generate `public_id = uuid4().hex`, use `guest-{public_id}@internal.invalid`, hash a random server-only password, insert `users` and `guest_players`, commit, and set the cookie:
 
@@ -264,17 +264,17 @@ response.set_cookie(
 
 For tests, override `PLAYER_COOKIE_DOMAIN=None` and use `AsyncClient(..., base_url='https://test')` so HTTPX accepts and returns the secure cookie.
 
-- [ ] **Step 6: Mount the player router and remove legacy auth exposure**
+- [x] **Step 6: Mount the player router and remove legacy auth exposure**
 
 Export `player_router` from `backend/app/routers/__init__.py`, include it in `main.py`, remove `app.include_router(auth_router)`, and remove permissive wildcard CORS because browser API traffic is same-origin through Next.js/Nginx.
 
-- [ ] **Step 7: Run guest and legacy-route tests**
+- [x] **Step 7: Run guest and legacy-route tests**
 
 Run: `PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_players.py backend/tests/test_auth.py -q`
 
 Expected: guest tests PASS; replace legacy auth behavior tests with one assertion that `/api/auth/login`, `/register`, `/refresh`, and `/me` return 404.
 
-- [ ] **Step 8: Commit guest identity**
+- [x] **Step 8: Commit guest identity**
 
 ```bash
 git add backend/app/guest.py backend/app/routers/players.py backend/app/config.py backend/app/models.py backend/app/routers/__init__.py backend/app/main.py backend/tests/conftest.py backend/tests/test_players.py backend/tests/test_auth.py

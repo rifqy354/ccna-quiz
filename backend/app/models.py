@@ -1,6 +1,7 @@
 """Pydantic request/response models."""
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field
+import unicodedata
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, Literal
 
 
@@ -30,6 +31,25 @@ class TokenResponse(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class PlayerCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=24)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str) -> str:
+        value = value.strip()
+        if (
+            not 2 <= len(value) <= 24
+            or any(unicodedata.category(char).startswith("C") for char in value)
+        ):
+            raise ValueError("Name must contain 2–24 visible characters")
+        return value
+
+
+class PlayerResponse(BaseModel):
+    name: str
 
 
 class DomainSummary(BaseModel):
