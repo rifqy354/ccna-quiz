@@ -1,11 +1,19 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
-import Login from '../app/login/page';
-const {login}=vi.hoisted(()=>({login:vi.fn(()=>new Promise(()=>{}))}));
-vi.mock('../lib/auth-context',()=>({useAuth:()=>({login})}));
-vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn()})}));
-afterEach(cleanup);
-it('disables repeated login submissions while pending',()=>{
- render(<Login/>);fireEvent.change(screen.getByLabelText('Email'),{target:{value:'a@b.com'}});fireEvent.change(screen.getByLabelText('Password'),{target:{value:'password'}});
- const button=screen.getByRole('button',{name:'Login'});fireEvent.click(button);fireEvent.click(button);expect(login).toHaveBeenCalledTimes(1);expect((button as HTMLButtonElement).disabled).toBe(true);
+import {cleanup,fireEvent,render,screen} from '@testing-library/react';
+import {afterEach,expect,it,vi} from 'vitest';
+
+const createPlayer=vi.hoisted(()=>vi.fn(()=>new Promise<void>(()=>{})));
+vi.mock('../lib/player-context',()=>({usePlayer:()=>({createPlayer,error:null})}));
+
+import NamePrompt from '../components/NamePrompt';
+
+afterEach(()=>{cleanup();createPlayer.mockClear();});
+
+it('labels the name field and blocks repeated submissions while pending',()=>{
+  render(<NamePrompt/>);
+  fireEvent.change(screen.getByLabelText('Your name'),{target:{value:'Rifqy'}});
+  const button=screen.getByRole('button',{name:'Enter the quiz'});
+  fireEvent.click(button);fireEvent.click(button);
+  expect(createPlayer).toHaveBeenCalledTimes(1);
+  expect(createPlayer).toHaveBeenCalledWith('Rifqy');
+  expect((button as HTMLButtonElement).disabled).toBe(true);
 });

@@ -662,11 +662,11 @@ git commit -m "feat: add editorial portfolio and writeups"
 - Create: `frontend/components/NamePrompt.tsx`
 - Create: `frontend/components/QuizNav.tsx`
 - Create: `frontend/components/LeaderboardTable.tsx`
+- Create: `frontend/components/PlayerGate.tsx`
+- Create: `frontend/components/SessionRunner.tsx`
 - Create: `frontend/tests/name-prompt.test.tsx`
 - Create: `frontend/tests/challenge-page.test.tsx`
 - Create: `frontend/tests/leaderboard-page.test.tsx`
-- Modify: `frontend/components/QuizCard.tsx`
-- Modify: `frontend/components/StreakCalendar.tsx`
 - Modify: `frontend/tests/forms.test.tsx`
 - Modify: `frontend/tests/session.test.tsx`
 - Delete: `frontend/app/page.tsx`
@@ -688,23 +688,23 @@ git commit -m "feat: add editorial portfolio and writeups"
 - Consumes: `usePlayer()`, token-free `api`, `ChallengeSummary`, and `LeaderboardEntry` from Task 5.
 - Produces: internal quiz route tree rooted at `/quiz`, including `/quiz/challenge` and `/quiz/leaderboard`.
 
-- [ ] **Step 1: Write first-visit and returning-player UI tests**
+- [x] **Step 1: Write first-visit and returning-player UI tests**
 
 Mock `usePlayer()`. When `player` is null, assert the name form is the only primary content; when a player exists, assert the quiz dashboard, study actions, Challenge, Leaderboard, Portfolio, and Writeups links appear. Assert the rendered app contains no login, register, email, password, or logout controls.
 
-- [ ] **Step 2: Implement the name prompt**
+- [x] **Step 2: Implement the name prompt**
 
 Use a labeled text input with `minLength={2}`, `maxLength={24}`, `autoComplete="nickname"`, pending state, and inline error. Submit `name.trim()` through `createPlayer`. Keep typed input after failure.
 
-- [ ] **Step 3: Convert and move the existing quiz pages**
+- [x] **Step 3: Convert and move the existing quiz pages**
 
 Move dashboard, domain, study, session, and stats behavior under `frontend/app/quiz`. Replace `useAuth()` checks and token arguments with `usePlayer()` and cookie-backed API calls, then remove `AuthProvider` from the root layout, delete the auth context/tests/pages, and simplify every study API method to omit tokens. If `player` becomes null after a 401, render `NamePrompt`. Preserve question grading, confidence buttons, explanations, mastery, diagrams, and the volatile `sessionCounts` map.
 
-- [ ] **Step 4: Add expired-session recovery tests and behavior**
+- [x] **Step 4: Add expired-session recovery tests and behavior**
 
 Mock a 404 from `api.sessions.next()` and assert the session page says `This session expired when the quiz service restarted.` with a link to `/study`. Do not store the queue, current index, or responses in localStorage, sessionStorage, IndexedDB, or a new database table.
 
-- [ ] **Step 5: Write and implement challenge UI tests**
+- [x] **Step 5: Write and implement challenge UI tests**
 
 Assert one button calls `api.sessions.challenge()`, reports progress out of 20, reuses the quiz card for answers, and renders backend completion values:
 
@@ -717,15 +717,15 @@ expect(screen.getByText('Rank 4')).toBeTruthy();
 
 Provide `Try another challenge` and `View leaderboard` actions.
 
-- [ ] **Step 6: Write and implement leaderboard UI tests**
+- [x] **Step 6: Write and implement leaderboard UI tests**
 
 Render rows with the exact column headings `Rank`, `Name`, `Score`, `Correct`, and `Wrong`. Test dense tied ranks from mocked API data and an error state with a `Retry` button. Do not infer or highlight the current player.
 
-- [ ] **Step 7: Apply the editorial visual system to quiz components**
+- [x] **Step 7: Apply the editorial visual system to quiz components**
 
 Replace inline dashboard and navigation styles with reusable classes. Use paper panels, numbered domain rows, thin rules, signal-red selection markers, textual correct/wrong icons, and tabular numerals for scores. Ensure answer state is expressed with icon/text plus color.
 
-- [ ] **Step 8: Run all frontend tests and build**
+- [x] **Step 8: Run all frontend tests and build**
 
 Run: `cd frontend && npm test`
 
@@ -735,7 +735,7 @@ Run: `cd frontend && npm run build`
 
 Expected: PASS with no TypeScript or route collision errors.
 
-- [ ] **Step 9: Commit the complete quiz UI**
+- [x] **Step 9: Commit the complete quiz UI**
 
 ```bash
 git add frontend/app/quiz/page.tsx frontend/app/quiz/domains/page.tsx frontend/app/quiz/domains/[id]/page.tsx frontend/app/quiz/study/page.tsx frontend/app/quiz/study/[sessionId]/page.tsx frontend/app/quiz/stats/page.tsx frontend/app/quiz/challenge/page.tsx frontend/app/quiz/leaderboard/page.tsx frontend/components/NamePrompt.tsx frontend/components/QuizNav.tsx frontend/components/LeaderboardTable.tsx frontend/components/QuizCard.tsx frontend/components/StreakCalendar.tsx frontend/tests/name-prompt.test.tsx frontend/tests/challenge-page.test.tsx frontend/tests/leaderboard-page.test.tsx frontend/tests/forms.test.tsx frontend/tests/session.test.tsx frontend/tests/auth.test.tsx frontend/lib/api.ts frontend/lib/auth-context.tsx frontend/app/layout.tsx frontend/app/page.tsx frontend/app/dashboard/page.tsx frontend/app/domains/page.tsx frontend/app/domains/[id]/page.tsx frontend/app/study/page.tsx frontend/app/study/[sessionId]/page.tsx frontend/app/stats/page.tsx frontend/app/login/page.tsx frontend/app/register/page.tsx frontend/components/NavBar.tsx
