@@ -119,6 +119,17 @@ class SessionSummary(BaseModel):
     correct_count: int
     accuracy_pct: float
     completed_at: datetime
+    score: Optional[int] = None
+    wrong_count: Optional[int] = None
+    rank: Optional[int] = None
+
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    name: str
+    score: int
+    correct: int
+    wrong: int
 
 
 class DashboardStats(BaseModel):

@@ -5,7 +5,13 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 from .database import init_db
 from . import database
-from .routers import player_router, questions_router, sessions_router, stats_router
+from .routers import (
+    leaderboard_router,
+    player_router,
+    questions_router,
+    sessions_router,
+    stats_router,
+)
 
 
 @asynccontextmanager
@@ -21,6 +27,7 @@ app = FastAPI(
 )
 
 app.include_router(player_router)
+app.include_router(leaderboard_router)
 app.include_router(questions_router)
 app.include_router(sessions_router)
 app.include_router(stats_router)

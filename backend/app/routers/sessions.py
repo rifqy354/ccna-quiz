@@ -1,7 +1,7 @@
 """Study sessions router — start, answer, complete."""
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from datetime import datetime, timezone
 from ..models import (
     SessionStartRequest, SessionStartResponse, AnswerRequest,
@@ -11,6 +11,11 @@ from ..database import get_db
 from ..guest import get_current_player
 from ..services.sr_scheduler import compute_next_review, select_session_questions
 from ..services.grading import is_correct_answer, normalize_selection, is_multi_answer as _is_multi
+from ..services.challenge import (
+    ChallengePoolError,
+    save_best_challenge,
+    select_challenge_questions,
+)
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -78,6 +83,7 @@ async def start_session(
             "questions": selected,
             "index": 0,
             "correct_count": 0,
+            "session_type": data.session_type,
             "lock": asyncio.Lock(),
         }
 
@@ -86,6 +92,53 @@ async def start_session(
             total_questions=len(selected),
             session_type=data.session_type,
         )
+
+
+@router.post("/challenge", response_model=SessionStartResponse)
+async def start_challenge(
+    request: Request,
+    current_user: dict = Depends(get_current_player),
+):
+    if await request.body():
+        raise HTTPException(
+            status_code=422,
+            detail="Challenge size and domains are fixed by the server",
+        )
+
+    async with get_db() as db:
+        cursor = await db.execute(
+            "SELECT * FROM questions WHERE domain BETWEEN 1 AND 7"
+        )
+        try:
+            selected = select_challenge_questions(
+                [dict(row) for row in await cursor.fetchall()]
+            )
+        except ChallengePoolError as error:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Challenge question pools are incomplete: {error.missing}",
+            )
+
+        cursor = await db.execute(
+            "INSERT INTO study_sessions(user_id,domain,session_type) VALUES(?,NULL,'challenge')",
+            (current_user["id"],),
+        )
+        await db.commit()
+        session_id = cursor.lastrowid
+
+    _session_cache[session_id] = {
+        "user_id": current_user["id"],
+        "questions": selected,
+        "index": 0,
+        "correct_count": 0,
+        "session_type": "challenge",
+        "lock": asyncio.Lock(),
+    }
+    return SessionStartResponse(
+        session_id=session_id,
+        total_questions=20,
+        session_type="challenge",
+    )
 
 
 @router.get("/{session_id}/next", response_model=QuestionResponse)
@@ -251,7 +304,11 @@ async def _answer_current_question(session_id: int, data: AnswerRequest, current
     )
 
 
-@router.post("/{session_id}/complete", response_model=SessionSummary)
+@router.post(
+    "/{session_id}/complete",
+    response_model=SessionSummary,
+    response_model_exclude_none=True,
+)
 async def complete_session(
     session_id: int,
     current_user: dict = Depends(get_current_player),
@@ -264,13 +321,28 @@ async def _complete_locked_session(session_id: int, cache: dict):
     completed_at = datetime.now(timezone.utc)
     questions_shown = cache["index"]
     correct_count = cache["correct_count"]
+    is_challenge = cache.get("session_type") == "challenge"
+    if is_challenge and questions_shown != 20:
+        raise HTTPException(
+            status_code=409,
+            detail="Answer all 20 challenge questions before completing",
+        )
     accuracy = round(correct_count / questions_shown * 100, 1) if questions_shown > 0 else 0.0
+    challenge_record = None
 
     async with get_db() as db:
+        await db.execute("BEGIN IMMEDIATE")
         await db.execute(
             "UPDATE study_sessions SET completed_at = ?, questions_shown = ?, correct_count = ? WHERE id = ?",
             (completed_at.isoformat(), questions_shown, correct_count, session_id)
         )
+        if is_challenge:
+            challenge_record = await save_best_challenge(
+                db,
+                user_id=cache["user_id"],
+                correct_count=correct_count,
+                completed_at=completed_at,
+            )
         await db.commit()
 
     del _session_cache[session_id]
@@ -281,4 +353,7 @@ async def _complete_locked_session(session_id: int, cache: dict):
         correct_count=correct_count,
         accuracy_pct=accuracy,
         completed_at=completed_at,
+        score=challenge_record["score"] if challenge_record else None,
+        wrong_count=challenge_record["wrong_count"] if challenge_record else None,
+        rank=challenge_record["rank"] if challenge_record else None,
     )

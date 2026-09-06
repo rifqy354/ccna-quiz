@@ -379,7 +379,7 @@ git commit -m "feat: authorize study routes with guest cookies"
 - Extends: `SessionSummary` with optional `score: int`, `wrong_count: int`, and `rank: int` for completed challenges.
 - Produces: `LeaderboardEntry(rank: int, name: str, score: int, correct: int, wrong: int)`.
 
-- [ ] **Step 1: Write pure challenge-selection tests**
+- [x] **Step 1: Write pure challenge-selection tests**
 
 ```python
 def test_challenge_has_fixed_domain_distribution():
@@ -392,13 +392,13 @@ def test_challenge_has_fixed_domain_distribution():
 
 Add a test asserting `ChallengePoolError` when any domain is undersized.
 
-- [ ] **Step 2: Run the selection tests and confirm they fail**
+- [x] **Step 2: Run the selection tests and confirm they fail**
 
 Run: `PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_challenge.py -q`
 
 Expected: FAIL because the challenge service does not exist.
 
-- [ ] **Step 3: Implement deterministic, exact selection**
+- [x] **Step 3: Implement deterministic, exact selection**
 
 ```python
 REQUIRED = {1: 3, 2: 3, 3: 3, 4: 3, 5: 3, 6: 3, 7: 2}
@@ -414,7 +414,7 @@ def select_challenge_questions(questions: list[dict], rng: random.Random | None 
     return selected
 ```
 
-- [ ] **Step 4: Write API tests for fixed challenge start and authoritative completion**
+- [x] **Step 4: Write API tests for fixed challenge start and authoritative completion**
 
 Seed at least three questions in domains 1–6 and two in domain 7. Assert `POST /api/sessions/challenge` accepts no count/domain, returns total 20, partial completion is rejected, and a completed session returns `score`, `wrong_count`, and `rank` derived from submitted answers.
 
@@ -425,11 +425,11 @@ partial = await client.post(f"/api/sessions/{started.json()['session_id']}/compl
 assert partial.status_code == 409
 ```
 
-- [ ] **Step 5: Implement challenge start and cache metadata**
+- [x] **Step 5: Implement challenge start and cache metadata**
 
 Add the static `/challenge` route before `/{session_id}` routes. Query domains 1–7, call `select_challenge_questions`, insert `study_sessions(session_type='challenge')`, and cache `session_type: 'challenge'`. Also add `session_type` to regular cache entries.
 
-- [ ] **Step 6: Implement transactional best-result completion**
+- [x] **Step 6: Implement transactional best-result completion**
 
 For challenges, require `cache['index'] == 20`, calculate server-side fields, and execute the session update and conditional upsert before one commit:
 
@@ -446,7 +446,7 @@ WHERE excluded.score > challenge_records.score
 
 Compute dense rank with `1 + COUNT(DISTINCT score)` for scores above the player's stored best. Do not update `challenge_records` for any other session type.
 
-- [ ] **Step 7: Write leaderboard tests**
+- [x] **Step 7: Write leaderboard tests**
 
 Insert scores 100, 90, 90, and 75 under duplicate-capable names. Assert the response ranks are 1, 2, 2, 3; tie order follows `completed_at, id`; and every row has exactly these keys:
 
@@ -456,11 +456,11 @@ assert set(row) == {'rank', 'name', 'score', 'correct', 'wrong'}
 
 Also test that an equal/lower score keeps the original record and a higher score replaces it.
 
-- [ ] **Step 8: Implement and mount the public leaderboard router**
+- [x] **Step 8: Implement and mount the public leaderboard router**
 
 Use a SQL `DENSE_RANK() OVER (ORDER BY score DESC)` subquery joined to `guest_players`, order by rank then completion time then record ID, and map `correct_count`/`wrong_count` to the approved response names. Do not add a player ID, email, timestamp, or current-player flag.
 
-- [ ] **Step 9: Run challenge, leaderboard, and full backend suites**
+- [x] **Step 9: Run challenge, leaderboard, and full backend suites**
 
 Run: `PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_challenge.py backend/tests/test_leaderboard.py -q`
 
@@ -470,7 +470,7 @@ Run: `PYTHONPATH=backend .venv/bin/python -m pytest -q`
 
 Expected: PASS with no regressions.
 
-- [ ] **Step 10: Commit challenge behavior**
+- [x] **Step 10: Commit challenge behavior**
 
 ```bash
 git add backend/app/services/challenge.py backend/app/routers/leaderboard.py backend/app/models.py backend/app/routers/sessions.py backend/app/routers/__init__.py backend/app/main.py backend/tests/test_challenge.py backend/tests/test_leaderboard.py
