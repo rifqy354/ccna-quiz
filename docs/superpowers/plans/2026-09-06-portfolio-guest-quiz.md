@@ -300,7 +300,7 @@ git commit -m "feat: replace account auth with guest identity"
 - Consumes: `get_current_player() -> {'id': int, 'public_id': str, 'name': str}` from Task 2.
 - Produces: Existing question, session, and stats APIs authenticated only by the `ccna_player` cookie.
 
-- [ ] **Step 1: Replace the shared auth fixture with a guest fixture**
+- [x] **Step 1: Replace the shared auth fixture with a guest fixture**
 
 Create a helper that establishes the cookie jar and returns the public profile:
 
@@ -314,7 +314,7 @@ async def player(client):
 
 Update endpoint tests to depend on `player` and remove `headers=auth_headers`.
 
-- [ ] **Step 2: Add guest isolation coverage**
+- [x] **Step 2: Add guest isolation coverage**
 
 Use two independent `AsyncClient` instances. Start a session with the first, then assert the second receives 404 for its next-question route and cannot submit an answer.
 
@@ -324,13 +324,13 @@ session_id = response.json()['session_id']
 assert (await second.get(f'/api/sessions/{session_id}/next')).status_code == 404
 ```
 
-- [ ] **Step 3: Run a protected-route test and confirm bearer-free requests fail before conversion**
+- [x] **Step 3: Run a protected-route test and confirm bearer-free requests fail before conversion**
 
 Run: `PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_sessions.py::test_dashboard_returns_stats -q`
 
 Expected: FAIL because the route still expects a bearer token.
 
-- [ ] **Step 4: Replace route dependencies**
+- [x] **Step 4: Replace route dependencies**
 
 In all three routers, replace:
 
@@ -348,13 +348,13 @@ current_user: dict = Depends(get_current_player)
 
 Keep every `current_user['id']` query and session-cache ownership check intact.
 
-- [ ] **Step 5: Run all study tests**
+- [x] **Step 5: Run all study tests**
 
 Run: `PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_questions.py backend/tests/test_sessions.py backend/tests/test_answer_submission.py backend/tests/test_correctness_mastery.py backend/tests/test_mastery_stats.py backend/tests/test_session_question_identity.py backend/tests/test_study_contract.py -q`
 
 Expected: PASS, including guest isolation, stale-answer, grading, mastery, and concurrent progress cases.
 
-- [ ] **Step 6: Commit guest-owned study routes**
+- [x] **Step 6: Commit guest-owned study routes**
 
 ```bash
 git add backend/app/routers/questions.py backend/app/routers/sessions.py backend/app/routers/stats.py backend/tests/conftest.py backend/tests/test_questions.py backend/tests/test_sessions.py backend/tests/test_answer_submission.py backend/tests/test_correctness_mastery.py backend/tests/test_mastery_stats.py backend/tests/test_session_question_identity.py backend/tests/test_study_contract.py

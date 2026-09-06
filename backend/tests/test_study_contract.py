@@ -2,7 +2,7 @@
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from app.auth import get_current_user
+from app.guest import get_current_player
 from app.main import app
 from app.routers import sessions
 from app import database
@@ -41,8 +41,8 @@ async def returning_learner(tmp_path, monkeypatch):
     async def current_user():
         return {"id": 1}
 
-    monkeypatch.setattr(app, "dependency_overrides", {get_current_user: current_user})
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    monkeypatch.setattr(app, "dependency_overrides", {get_current_player: current_user})
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="https://test") as client:
         yield client
 
 

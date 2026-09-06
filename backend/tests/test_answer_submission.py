@@ -9,7 +9,7 @@ from fastapi import Header
 from httpx import ASGITransport, AsyncClient
 
 from app import database
-from app.auth import get_current_user
+from app.guest import get_current_player
 from app.main import app
 from app.routers import sessions
 
@@ -32,8 +32,8 @@ async def client(tmp_path, monkeypatch):
     async def current_user(x_user_id: int = Header(default=1)):
         return {"id": x_user_id}
 
-    monkeypatch.setattr(app, "dependency_overrides", {get_current_user: current_user})
-    async with AsyncClient(transport=ASGITransport(app=app, raise_app_exceptions=False), base_url="http://test") as ac:
+    monkeypatch.setattr(app, "dependency_overrides", {get_current_player: current_user})
+    async with AsyncClient(transport=ASGITransport(app=app, raise_app_exceptions=False), base_url="https://test") as ac:
         yield ac
 
 

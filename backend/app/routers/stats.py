@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from datetime import date
 from ..models import DashboardStats, DomainSummary
 from ..database import get_db
-from ..auth import get_current_user
+from ..guest import get_current_player
 from ..services.mastery import compute_domain_mastery, get_study_streak, get_weak_areas
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
@@ -21,7 +21,7 @@ DOMAIN_NAMES = {
 
 @router.get("/dashboard", response_model=DashboardStats)
 async def dashboard(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_player),
 ):
     today = date.today().isoformat()
     user_id = current_user["id"]
@@ -76,7 +76,7 @@ async def dashboard(
 @router.get("/weak-areas")
 async def weak_areas(
     threshold: float = 60.0,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_player),
 ):
     areas = await get_weak_areas(current_user["id"], threshold)
     return {"weak_areas": areas}

@@ -8,7 +8,7 @@ from ..models import (
     AnswerResponse, SessionSummary, QuestionResponse,
 )
 from ..database import get_db
-from ..auth import get_current_user
+from ..guest import get_current_player
 from ..services.sr_scheduler import compute_next_review, select_session_questions
 from ..services.grading import is_correct_answer, normalize_selection, is_multi_answer as _is_multi
 
@@ -33,7 +33,7 @@ async def _locked_session(session_id: int, user_id: int):
 @router.post("/start", response_model=SessionStartResponse)
 async def start_session(
     data: SessionStartRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_player),
 ):
     async with get_db() as db:
         if data.domain:
@@ -91,7 +91,7 @@ async def start_session(
 @router.get("/{session_id}/next", response_model=QuestionResponse)
 async def get_next_question(
     session_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_player),
 ):
     cache = _session_cache.get(session_id)
     if not cache or cache["user_id"] != current_user["id"]:
@@ -127,7 +127,7 @@ async def get_next_question(
 async def answer_question(
     session_id: int,
     data: AnswerRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_player),
 ):
     async with _locked_session(session_id, current_user["id"]) as cache:
         return await _answer_current_question(session_id, data, current_user, cache)
@@ -254,7 +254,7 @@ async def _answer_current_question(session_id: int, data: AnswerRequest, current
 @router.post("/{session_id}/complete", response_model=SessionSummary)
 async def complete_session(
     session_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_player),
 ):
     async with _locked_session(session_id, current_user["id"]) as cache:
         return await _complete_locked_session(session_id, cache)

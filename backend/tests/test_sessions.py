@@ -10,20 +10,15 @@ pytest_plugins = ['pytest_asyncio']
 @pytest_asyncio.fixture
 async def client():
     await init_db()
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="https://test") as ac:
         yield ac
 
 
 @pytest_asyncio.fixture
-async def auth_headers(client):
-    await client.post("/api/auth/register", json={
-        "email": "sesstest@example.com", "password": "testpass1234", "name": "SessTest"
-    })
-    resp = await client.post("/api/auth/login", json={
-        "email": "sesstest@example.com", "password": "testpass1234"
-    })
-    token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+async def player(client):
+    response = await client.post("/api/player", json={"name": "Session Player"})
+    assert response.status_code == 201
+    return response.json()
 
 
 @pytest.mark.asyncio
@@ -33,8 +28,8 @@ async def test_start_session_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_start_session_empty_db(client, auth_headers):
-    resp = await client.post("/api/sessions/start", json={"domain": 1, "count": 5}, headers=auth_headers)
+async def test_start_session_empty_db(client, player):
+    resp = await client.post("/api/sessions/start", json={"domain": 1, "count": 5})
     # 404 when no questions in DB is expected
     assert resp.status_code in (200, 404)
 
@@ -46,8 +41,8 @@ async def test_dashboard_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_returns_stats(client, auth_headers):
-    resp = await client.get("/api/stats/dashboard", headers=auth_headers)
+async def test_dashboard_returns_stats(client, player):
+    resp = await client.get("/api/stats/dashboard")
     assert resp.status_code == 200
     data = resp.json()
     assert "total_questions" in data
@@ -63,30 +58,57 @@ async def test_weak_areas_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_weak_areas_returns_empty_list(client, auth_headers):
-    resp = await client.get("/api/stats/weak-areas", headers=auth_headers)
+async def test_weak_areas_returns_empty_list(client, player):
+    resp = await client.get("/api/stats/weak-areas")
     assert resp.status_code == 200
     data = resp.json()
     assert "weak_areas" in data
+
+
+@pytest.mark.asyncio
+async def test_players_cannot_access_each_others_sessions():
+    transport = ASGITransport(app=app)
+    async with (
+        AsyncClient(transport=transport, base_url="https://test") as first,
+        AsyncClient(transport=transport, base_url="https://test") as second,
+    ):
+        assert (await first.post("/api/player", json={"name": "First Player"})).status_code == 201
+        assert (await second.post("/api/player", json={"name": "Second Player"})).status_code == 201
+        started = await first.post("/api/sessions/start", json={"count": 1})
+        assert started.status_code == 200
+        session_id = started.json()["session_id"]
+        question = await first.get(f"/api/sessions/{session_id}/next")
+        assert question.status_code == 200
+
+        assert (await second.get(f"/api/sessions/{session_id}/next")).status_code == 404
+        forbidden_answer = await second.post(
+            f"/api/sessions/{session_id}/answer",
+            json={
+                "question_id": question.json()["id"],
+                "selected_options": ["A"],
+                "confidence": "good",
+            },
+        )
+        assert forbidden_answer.status_code == 404
 
 
 
 
 # ── Multi-answer integration tests ──────────────────────────────────────────
 
-async def _find_multi_question(client, auth_headers, count=50):
+async def _find_multi_question(client, count=50):
     """Start a session and return the first multi-answer question found.
 
     Each get_next() call must be paired with an answer() call to advance
     the session cache index.
     """
     r = await client.post("/api/sessions/start",
-        json={"session_type": "mixed", "count": count}, headers=auth_headers)
+        json={"session_type": "mixed", "count": count})
     if r.status_code != 200:
         return None
     sid = r.json()["session_id"]
     for _ in range(count):
-        r = await client.get(f"/api/sessions/{sid}/next", headers=auth_headers)
+        r = await client.get(f"/api/sessions/{sid}/next")
         if r.status_code != 200:
             break
         q = r.json()
@@ -104,14 +126,14 @@ async def _find_multi_question(client, auth_headers, count=50):
         r = await client.post(f"/api/sessions/{sid}/answer",
             json={"question_id": q["id"], "selected_options": ["A"],
                   "confidence": "good", "response_time_ms": 100},
-            headers=auth_headers)
+        )
     return None
 
 
 @pytest.mark.asyncio
-async def test_answer_multi_correct(client, auth_headers):
+async def test_answer_multi_correct(client, player):
     """Full multi-answer selection is graded correct."""
-    result = await _find_multi_question(client, auth_headers)
+    result = await _find_multi_question(client)
     if result is None:
         pytest.skip("No multi-answer question in first 100 session questions")
     sid, q = result
@@ -119,7 +141,7 @@ async def test_answer_multi_correct(client, auth_headers):
     r = await client.post(f"/api/sessions/{sid}/answer",
         json={"question_id": q["id"], "selected_options": list(correct),
               "confidence": "good", "response_time_ms": 1000},
-        headers=auth_headers)
+    )
     assert r.status_code == 200
     data = r.json()
     assert data["is_correct"] is True
@@ -127,9 +149,9 @@ async def test_answer_multi_correct(client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_answer_multi_partial_is_wrong(client, auth_headers):
+async def test_answer_multi_partial_is_wrong(client, player):
     """Partial multi-answer (subset) is graded incorrect."""
-    result = await _find_multi_question(client, auth_headers)
+    result = await _find_multi_question(client)
     if result is None:
         pytest.skip("No multi-answer question in first 100 session questions")
     sid, q = result
@@ -138,15 +160,15 @@ async def test_answer_multi_partial_is_wrong(client, auth_headers):
     r = await client.post(f"/api/sessions/{sid}/answer",
         json={"question_id": q["id"], "selected_options": partial,
               "confidence": "good", "response_time_ms": 1000},
-        headers=auth_headers)
+    )
     assert r.status_code == 200
     assert r.json()["is_correct"] is False
 
 
 @pytest.mark.asyncio
-async def test_answer_multi_reversed_order_is_correct(client, auth_headers):
+async def test_answer_multi_reversed_order_is_correct(client, player):
     """Multi-answer selection order does not affect correctness."""
-    result = await _find_multi_question(client, auth_headers)
+    result = await _find_multi_question(client)
     if result is None:
         pytest.skip("No multi-answer question in first 100 session questions")
     sid, q = result
@@ -154,7 +176,7 @@ async def test_answer_multi_reversed_order_is_correct(client, auth_headers):
     r = await client.post(f"/api/sessions/{sid}/answer",
         json={"question_id": q["id"], "selected_options": list(correct)[::-1],
               "confidence": "good", "response_time_ms": 1000},
-        headers=auth_headers)
+    )
     assert r.status_code == 200
     data = r.json()
     assert data["is_correct"] is True
@@ -162,9 +184,9 @@ async def test_answer_multi_reversed_order_is_correct(client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_answer_multi_superset_is_wrong(client, auth_headers):
+async def test_answer_multi_superset_is_wrong(client, player):
     """Multi-answer superset (extra letters) is graded incorrect."""
-    result = await _find_multi_question(client, auth_headers)
+    result = await _find_multi_question(client)
     if result is None:
         pytest.skip("No multi-answer question in first 100 session questions")
     sid, q = result
@@ -174,30 +196,30 @@ async def test_answer_multi_superset_is_wrong(client, auth_headers):
     r = await client.post(f"/api/sessions/{sid}/answer",
         json={"question_id": q["id"], "selected_options": letters + [extra],
               "confidence": "good", "response_time_ms": 1000},
-        headers=auth_headers)
+    )
     assert r.status_code == 200
     assert r.json()["is_correct"] is False
 
 
 @pytest.mark.asyncio
-async def test_answer_duplicate_submission_rejected(client, auth_headers):
+async def test_answer_duplicate_submission_rejected(client, player):
     """Submitting the same question twice returns 409 Conflict."""
     r = await client.post("/api/sessions/start",
-        json={"session_type": "mixed", "count": 5}, headers=auth_headers)
+        json={"session_type": "mixed", "count": 5})
     assert r.status_code == 200
     sid = r.json()["session_id"]
-    r = await client.get(f"/api/sessions/{sid}/next", headers=auth_headers)
+    r = await client.get(f"/api/sessions/{sid}/next")
     assert r.status_code == 200
     q = r.json()
     # First submission advances the session index
     r = await client.post(f"/api/sessions/{sid}/answer",
         json={"question_id": q["id"], "selected_options": ["A"],
               "confidence": "good", "response_time_ms": 1000},
-        headers=auth_headers)
+    )
     assert r.status_code == 200
     # Second submission with the same question_id is now stale → 409
     r = await client.post(f"/api/sessions/{sid}/answer",
         json={"question_id": q["id"], "selected_options": ["A"],
               "confidence": "good", "response_time_ms": 1000},
-        headers=auth_headers)
+    )
     assert r.status_code == 409

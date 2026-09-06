@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from ..models import DomainSummary, QuestionResponse
 from ..database import get_db
-from ..auth import get_current_user
+from ..guest import get_current_player
 from ..services.grading import is_multi_answer
 
 router = APIRouter(prefix="/api", tags=["questions"])
@@ -20,7 +20,7 @@ DOMAIN_NAMES = {
 
 @router.get("/domains", response_model=list[DomainSummary])
 async def list_domains(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_player),
 ):
     async with get_db() as db:
         results = []
@@ -56,7 +56,7 @@ async def list_domains(
 @router.get("/domains/{domain_id}", response_model=dict)
 async def get_domain(
     domain_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_player),
 ):
     if domain_id < 1 or domain_id > 7:
         raise HTTPException(status_code=404, detail="Domain not found")
@@ -81,7 +81,7 @@ async def get_domain(
 @router.get("/questions/random", response_model=QuestionResponse)
 async def get_random_question(
     domain: int = Query(default=None, ge=1, le=7),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_player),
 ):
     async with get_db() as db:
         if domain:
