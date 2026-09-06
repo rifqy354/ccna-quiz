@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    return () => { generation.current++; setRefreshHandler(null); };
  }, []);
  useEffect(() => {
-   if (!loading && !user && pathname !== '/' && pathname !== '/login' && pathname !== '/register') router.replace('/login');
+   if (!loading && !user && !pathname.startsWith('/portfolio') && pathname !== '/' && pathname !== '/login' && pathname !== '/register') router.replace('/login');
  },[loading,user,pathname,router]);
  const login = async (email: string,password: string) => {
    const data = await apiFetch<Tokens>('/api/auth/login',undefined,{email,password});

@@ -589,7 +589,7 @@ git commit -m "feat: use guest identity in frontend"
 - Produces: portfolio internal route `/portfolio`, writeup internal route `/portfolio/writeups`, and absolute navigation to `https://quiz.email2.my.id/`.
 - Produces content: name `Rifqy`, role line `Networking and security student`, project entries `CCNA Quiz` and `CTF Writeups`.
 
-- [ ] **Step 1: Write portfolio rendering tests**
+- [x] **Step 1: Write portfolio rendering tests**
 
 ```typescript
 it('presents Rifqy and the two primary work areas', () => {
@@ -606,13 +606,13 @@ it('shows an honest empty writeup index', () => {
 });
 ```
 
-- [ ] **Step 2: Run the portfolio test and confirm routes are missing**
+- [x] **Step 2: Run the portfolio test and confirm routes are missing**
 
 Run: `cd frontend && npm test -- tests/portfolio.test.tsx`
 
 Expected: FAIL because the portfolio pages do not exist.
 
-- [ ] **Step 3: Add repository-owned site content**
+- [x] **Step 3: Add repository-owned site content**
 
 ```typescript
 export const profile = {
@@ -627,21 +627,21 @@ export const work = [
 ];
 ```
 
-- [ ] **Step 4: Implement semantic portfolio pages and header**
+- [x] **Step 4: Implement semantic portfolio pages and header**
 
 Use one `<h1>`, a `<nav aria-label="Primary">`, `<main>`, ordered work entries, and a visible skip link. The empty writeups page reports `0 published` without inventing projects or achievements.
 
-- [ ] **Step 5: Implement Signal / Editorial design tokens**
+- [x] **Step 5: Implement Signal / Editorial design tokens**
 
 Define CSS variables such as `--paper: #f4f1e8`, `--ink: #151515`, `--muted: #67645d`, `--rule: #c9c4b8`, and `--signal: #e23d28`. Use a system serif/sans pairing, a readable 65-character article measure, thin rules, restrained red actions, `:focus-visible`, `prefers-reduced-motion`, and a 360px media query.
 
-- [ ] **Step 6: Run portfolio tests and production build**
+- [x] **Step 6: Run portfolio tests and production build**
 
 Run: `cd frontend && npm test -- tests/portfolio.test.tsx && npm run build`
 
 Expected: PASS; both internal routes appear in the Next build output.
 
-- [ ] **Step 7: Commit the portfolio**
+- [x] **Step 7: Commit the portfolio**
 
 ```bash
 git add frontend/app/portfolio frontend/components/SiteHeader.tsx frontend/lib/site-content.ts frontend/tests/portfolio.test.tsx frontend/app/globals.css frontend/app/layout.tsx
