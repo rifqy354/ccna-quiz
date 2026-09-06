@@ -1,6 +1,21 @@
 export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 let refreshHandler: (() => Promise<string | null>) | null = null;
 export function setRefreshHandler(handler: typeof refreshHandler) { refreshHandler = handler; }
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+function errorDetail(detail: unknown, status: number): string {
+  if (Array.isArray(detail)) {
+    return detail.map((value: {msg?: string}) => value.msg || 'Invalid input').join('; ');
+  }
+  return typeof detail === 'string' ? detail : `Request failed (HTTP ${status})`;
+}
+
 export async function apiFetch<T>(path: string, token?: string, body?: object, method = body ? 'POST' : 'GET'): Promise<T> {
   const request = (access?: string) => fetch(`${API_BASE}${path}`, {
     method, headers: { 'Content-Type': 'application/json', ...(access ? { Authorization: `Bearer ${access}` } : {}) },
@@ -13,10 +28,25 @@ export async function apiFetch<T>(path: string, token?: string, body?: object, m
   }
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
-    const detail = Array.isArray(e.detail) ? e.detail.map((v: {msg?: string}) => v.msg || 'Invalid input').join('; ') : e.detail;
-    throw new Error(typeof detail === 'string' ? detail : `Request failed (HTTP ${res.status})`);
+    throw new ApiError(res.status, errorDetail(e.detail, res.status));
   }
   return res.status === 204 ? null as T : res.json();
+}
+
+type ApiInit = {body?: object; method?: 'GET' | 'POST'};
+
+export async function cookieFetch<T>(path: string, init: ApiInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: init.method ?? (init.body ? 'POST' : 'GET'),
+    credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json'},
+    ...(init.body ? {body: JSON.stringify(init.body)} : {}),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new ApiError(response.status, errorDetail(error.detail, response.status));
+  }
+  return response.status === 204 ? null as T : response.json();
 }
 
 // Volatile UI metadata only; study sessions are never saved in browser storage.
@@ -74,6 +104,16 @@ export interface SessionSummary {
   accuracy_pct: number; completed_at: string;
 }
 
+export interface Player { name: string; }
+
+export interface ChallengeSummary extends SessionSummary {
+  score: number; wrong_count: number; rank: number;
+}
+
+export interface LeaderboardEntry {
+  rank: number; name: string; score: number; correct: number; wrong: number;
+}
+
 export interface DashboardStats {
   total_questions: number; questions_mastered: number; questions_attempted: number;
   overall_recall_rate: number; study_streak: number; due_today: number;
@@ -81,6 +121,11 @@ export interface DashboardStats {
 }
 
 export const api = {
+  player: {
+    create: (name: string) =>
+      cookieFetch<Player>('/api/player', {body: {name}}),
+    me: () => cookieFetch<Player>('/api/player/me'),
+  },
   domains: {
     list: (token: string) =>
       apiFetch<DomainSummary[]>('/api/domains', token),
@@ -88,6 +133,8 @@ export const api = {
       apiFetch<{ domain: number; name: string; sub_domains: any[] }>(`/api/domains/${domain}`, token),
   },
   sessions: {
+    challenge: () =>
+      cookieFetch<SessionStartResponse>('/api/sessions/challenge', {method: 'POST'}),
     start: (data: { domain?: number; session_type: string; count: number }, token: string) =>
       apiFetch<SessionStartResponse>('/api/sessions/start', token, data),
     next: (sessionId: number, token: string) =>
@@ -100,5 +147,8 @@ export const api = {
   stats: {
     dashboard: (token: string) =>
       apiFetch<DashboardStats>('/api/stats/dashboard', token),
+  },
+  leaderboard: {
+    list: () => cookieFetch<LeaderboardEntry[]>('/api/leaderboard'),
   },
 };

@@ -484,25 +484,20 @@ git commit -m "feat: add fixed challenge leaderboard"
 - Create: `frontend/tests/player-context.test.tsx`
 - Create: `frontend/app/quiz/layout.tsx`
 - Modify: `frontend/lib/api.ts`
-- Modify: `frontend/app/layout.tsx`
 - Modify: `frontend/tests/api.test.ts`
-- Delete: `frontend/lib/auth-context.tsx`
-- Delete: `frontend/tests/auth.test.tsx`
-- Delete: `frontend/app/login/page.tsx`
-- Delete: `frontend/app/register/page.tsx`
 
 **Interfaces:**
 - Produces: `PlayerProvider`, `usePlayer()`, `createPlayer(name: string)`, `refreshPlayer()`, and `clearPlayer()`.
-- Changes: `apiFetch<T>(path: string, init?: ApiInit) -> Promise<T>` always uses `credentials: 'same-origin'` and never accepts a bearer token.
+- Produces: `cookieFetch<T>(path: string, init?: ApiInit) -> Promise<T>` using `credentials: 'same-origin'` and no bearer token. Existing token methods remain temporarily available to the old route tree until Task 7 moves it atomically.
 - Produces: `api.player.create`, `api.player.me`, `api.sessions.challenge`, and `api.leaderboard.list`.
 
-- [ ] **Step 1: Rewrite API tests around cookie credentials**
+- [x] **Step 1: Rewrite API tests around cookie credentials**
 
 ```typescript
 it('uses same-origin cookies without authorization headers', async () => {
   const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('[]'));
-  await api.domains.list();
-  expect(fetcher).toHaveBeenCalledWith('/api/domains', expect.objectContaining({
+  await api.player.me();
+  expect(fetcher).toHaveBeenCalledWith('/api/player/me', expect.objectContaining({
     credentials: 'same-origin',
     headers: {'Content-Type': 'application/json'},
   }));
@@ -511,18 +506,20 @@ it('uses same-origin cookies without authorization headers', async () => {
 
 Remove the refresh-token retry test and add contracts for player creation, challenge start without a body, and leaderboard reads.
 
-- [ ] **Step 2: Run the API tests and confirm the old signature fails**
+- [x] **Step 2: Run the API tests and confirm the old signature fails**
 
 Run: `cd frontend && npm test -- tests/api.test.ts`
 
-Expected: FAIL because API methods still require tokens and omit credentials.
+Expected: FAIL because player API methods do not exist.
 
-- [ ] **Step 3: Simplify the API client**
+- [x] **Step 3: Simplify the API client**
+
+Add the cookie-specific request path without changing the old route tree yet:
 
 ```typescript
 type ApiInit = {body?: object; method?: 'GET' | 'POST'};
 
-export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> {
+export async function cookieFetch<T>(path: string, init: ApiInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method: init.method ?? (init.body ? 'POST' : 'GET'),
     credentials: 'same-origin',
@@ -537,13 +534,13 @@ export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> 
 }
 ```
 
-Update every API method to omit token parameters. Define `Player`, `ChallengeSummary`, and `LeaderboardEntry` with the exact backend property names.
+Add cookie-backed `player`, `sessions.challenge`, and `leaderboard` methods. Keep existing token-backed study methods until Task 7, when their callers are converted together. Define `Player`, `ChallengeSummary`, and `LeaderboardEntry` with the exact backend property names.
 
-- [ ] **Step 4: Write player-provider tests**
+- [x] **Step 4: Write player-provider tests**
 
 Test the loading state, recognized returning player, first-visit 401, successful name creation, inline creation error, and invalidated-cookie recovery. Assert that no localStorage method is called.
 
-- [ ] **Step 5: Implement `PlayerProvider`**
+- [x] **Step 5: Implement `PlayerProvider`**
 
 On mount, call `api.player.me()`. Treat a 401 `ApiError` as `player=null`, keep other errors as a retryable error, and expose:
 
@@ -558,22 +555,22 @@ interface PlayerContextValue {
 }
 ```
 
-Remove `AuthProvider` from the root layout. Wrap only `frontend/app/quiz/layout.tsx` in `PlayerProvider`, because the apex portfolio does not expose `/api/` and does not need player state. Remove the auth pages and all access/refresh/user localStorage behavior.
+Wrap only `frontend/app/quiz/layout.tsx` in `PlayerProvider`, because the apex portfolio does not expose `/api/` and does not need player state. Leave the old root provider in place until Task 7 replaces the old route tree in one buildable change.
 
-- [ ] **Step 6: Run focused and full frontend tests**
+- [x] **Step 6: Run focused and full frontend tests**
 
 Run: `cd frontend && npm test -- tests/api.test.ts tests/player-context.test.tsx`
 
 Expected: PASS.
 
-Run: `cd frontend && npm test`
+Run: `cd frontend && npm test && npm run build`
 
-Expected: Existing page tests may now identify the exact components that need conversion in Task 7; API and provider tests must pass.
+Expected: All existing and new tests pass, and the intermediate branch still builds.
 
-- [ ] **Step 7: Commit the frontend identity boundary**
+- [x] **Step 7: Commit the frontend identity boundary**
 
 ```bash
-git add frontend/lib/api.ts frontend/lib/player-context.tsx frontend/app/layout.tsx frontend/app/quiz/layout.tsx frontend/tests/api.test.ts frontend/tests/player-context.test.tsx frontend/lib/auth-context.tsx frontend/tests/auth.test.tsx frontend/app/login/page.tsx frontend/app/register/page.tsx
+git add frontend/lib/api.ts frontend/lib/player-context.tsx frontend/app/quiz/layout.tsx frontend/tests/api.test.ts frontend/tests/player-context.test.tsx docs/superpowers/plans/2026-09-06-portfolio-guest-quiz.md
 git commit -m "feat: use guest identity in frontend"
 ```
 
@@ -680,6 +677,12 @@ git commit -m "feat: add editorial portfolio and writeups"
 - Delete: `frontend/app/study/[sessionId]/page.tsx`
 - Delete: `frontend/app/stats/page.tsx`
 - Delete: `frontend/components/NavBar.tsx`
+- Delete: `frontend/lib/auth-context.tsx`
+- Delete: `frontend/tests/auth.test.tsx`
+- Delete: `frontend/app/login/page.tsx`
+- Delete: `frontend/app/register/page.tsx`
+- Modify: `frontend/app/layout.tsx`
+- Modify: `frontend/lib/api.ts`
 
 **Interfaces:**
 - Consumes: `usePlayer()`, token-free `api`, `ChallengeSummary`, and `LeaderboardEntry` from Task 5.
@@ -695,7 +698,7 @@ Use a labeled text input with `minLength={2}`, `maxLength={24}`, `autoComplete="
 
 - [ ] **Step 3: Convert and move the existing quiz pages**
 
-Move dashboard, domain, study, session, and stats behavior under `frontend/app/quiz`. Replace `useAuth()` checks and token arguments with `usePlayer()` and cookie-backed API calls. If `player` becomes null after a 401, render `NamePrompt`. Preserve question grading, confidence buttons, explanations, mastery, diagrams, and the volatile `sessionCounts` map.
+Move dashboard, domain, study, session, and stats behavior under `frontend/app/quiz`. Replace `useAuth()` checks and token arguments with `usePlayer()` and cookie-backed API calls, then remove `AuthProvider` from the root layout, delete the auth context/tests/pages, and simplify every study API method to omit tokens. If `player` becomes null after a 401, render `NamePrompt`. Preserve question grading, confidence buttons, explanations, mastery, diagrams, and the volatile `sessionCounts` map.
 
 - [ ] **Step 4: Add expired-session recovery tests and behavior**
 
@@ -735,7 +738,7 @@ Expected: PASS with no TypeScript or route collision errors.
 - [ ] **Step 9: Commit the complete quiz UI**
 
 ```bash
-git add frontend/app/quiz/page.tsx frontend/app/quiz/domains/page.tsx frontend/app/quiz/domains/[id]/page.tsx frontend/app/quiz/study/page.tsx frontend/app/quiz/study/[sessionId]/page.tsx frontend/app/quiz/stats/page.tsx frontend/app/quiz/challenge/page.tsx frontend/app/quiz/leaderboard/page.tsx frontend/components/NamePrompt.tsx frontend/components/QuizNav.tsx frontend/components/LeaderboardTable.tsx frontend/components/QuizCard.tsx frontend/components/StreakCalendar.tsx frontend/tests/name-prompt.test.tsx frontend/tests/challenge-page.test.tsx frontend/tests/leaderboard-page.test.tsx frontend/tests/forms.test.tsx frontend/tests/session.test.tsx frontend/app/page.tsx frontend/app/dashboard/page.tsx frontend/app/domains/page.tsx frontend/app/domains/[id]/page.tsx frontend/app/study/page.tsx frontend/app/study/[sessionId]/page.tsx frontend/app/stats/page.tsx frontend/components/NavBar.tsx
+git add frontend/app/quiz/page.tsx frontend/app/quiz/domains/page.tsx frontend/app/quiz/domains/[id]/page.tsx frontend/app/quiz/study/page.tsx frontend/app/quiz/study/[sessionId]/page.tsx frontend/app/quiz/stats/page.tsx frontend/app/quiz/challenge/page.tsx frontend/app/quiz/leaderboard/page.tsx frontend/components/NamePrompt.tsx frontend/components/QuizNav.tsx frontend/components/LeaderboardTable.tsx frontend/components/QuizCard.tsx frontend/components/StreakCalendar.tsx frontend/tests/name-prompt.test.tsx frontend/tests/challenge-page.test.tsx frontend/tests/leaderboard-page.test.tsx frontend/tests/forms.test.tsx frontend/tests/session.test.tsx frontend/tests/auth.test.tsx frontend/lib/api.ts frontend/lib/auth-context.tsx frontend/app/layout.tsx frontend/app/page.tsx frontend/app/dashboard/page.tsx frontend/app/domains/page.tsx frontend/app/domains/[id]/page.tsx frontend/app/study/page.tsx frontend/app/study/[sessionId]/page.tsx frontend/app/stats/page.tsx frontend/app/login/page.tsx frontend/app/register/page.tsx frontend/components/NavBar.tsx
 git commit -m "feat: redesign quiz for guest players"
 ```
 
