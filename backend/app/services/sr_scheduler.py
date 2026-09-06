@@ -24,6 +24,8 @@ def compute_next_review(
     current_ease: float,
     current_interval: int,
     current_consecutive_correct: int,
+    *,
+    is_correct: bool,
 ) -> SRResult:
     """SM-2 variant scheduler.
 
@@ -32,6 +34,7 @@ def compute_next_review(
         current_ease: Current ease factor (default 2.5, min 1.3)
         current_interval: Current interval in days (default 1)
         current_consecutive_correct: Number of consecutive correct answers
+        is_correct: Graded answer result; wrong answers always reset learning.
 
     Returns:
         SRResult with new state values
@@ -40,7 +43,7 @@ def compute_next_review(
     interval = current_interval
     consecutive = current_consecutive_correct
 
-    if confidence == "again":
+    if not is_correct or confidence == "again":
         interval = 1
         ease = max(MIN_EASE, ease - 0.2)
         consecutive = 0
@@ -78,35 +81,40 @@ def select_session_questions(
     db_rows: list,
 ) -> list[dict]:
     """Select questions for a study session based on SR state and session type."""
-    today = date.today()
-
-    due = [r for r in db_rows if r.get("next_review_date") and r["next_review_date"] <= str(today)]
+    today = date.today().isoformat()
+    due = sorted(
+        (r for r in db_rows if r.get("next_review_date") and r["next_review_date"] <= today),
+        key=lambda r: (r["next_review_date"], r["id"]),
+    )
     new_qs = [r for r in db_rows if r.get("attempts", 0) == 0]
-    mastered_stale = [r for r in db_rows if r.get("mastered") and r.get("last_attempt_at")]
-    in_learning = [r for r in db_rows if r.get("attempts", 0) > 0 and not r.get("mastered")]
-
+    attempted = sorted(
+        (r for r in db_rows if r.get("attempts", 0) > 0),
+        key=lambda r: (r.get("last_attempt_at") or "", r["id"]),
+    )
+    in_learning = [r for r in attempted if not r.get("mastered")]
     selected = []
-    remaining = count
+    seen = set()
 
-    if session_type == "review":
-        for q in sorted(due, key=lambda r: r.get("next_review_date", "")):
-            if remaining <= 0:
+    def add(rows, limit=count):
+        added = 0
+        for row in rows:
+            if len(selected) >= count or added >= limit:
                 break
-            selected.append(q)
-            remaining -= 1
-        if remaining > 0:
-            for q in mastered_stale[-remaining:]:
-                selected.append(q)
-                remaining -= 1
-    elif session_type == "new":
-        for q in new_qs[:count]:
-            selected.append(q)
-    else:  # mixed
-        due_count = min(count // 2, len(due))
-        new_count = count - due_count
-        for q in sorted(due, key=lambda r: r.get("next_review_date", ""))[:due_count]:
-            selected.append(q)
-        for q in new_qs[:new_count]:
-            selected.append(q)
+            if row["id"] not in seen:
+                selected.append(row)
+                seen.add(row["id"])
+                added += 1
 
+    if session_type == "new":
+        add(new_qs)
+    elif session_type == "review":
+        add(due)
+        add(attempted)
+    else:
+        # Even a one-question mixed session should offer an overdue review.
+        add(due, (count + 1) // 2)
+        add(new_qs)
+        add(due)
+        add(in_learning)
+        add(attempted)
     return selected

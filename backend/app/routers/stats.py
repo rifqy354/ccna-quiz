@@ -15,6 +15,7 @@ DOMAIN_NAMES = {
     4: "IP Services",
     5: "Security Fundamentals",
     6: "Automation and Programmability",
+    7: "Practice Exams",
 }
 
 
@@ -26,37 +27,26 @@ async def dashboard(
     user_id = current_user["id"]
 
     async with get_db() as db:
-        cursor = await db.execute("SELECT COUNT(*) FROM questions WHERE domain BETWEEN 1 AND 6")
+        cursor = await db.execute("SELECT COUNT(*) FROM questions WHERE domain BETWEEN 1 AND 7")
         total = (await cursor.fetchone())[0]
 
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM user_progress WHERE user_id = ? AND mastered = 1",
-            (user_id,)
-        )
-        mastered = (await cursor.fetchone())[0]
-
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM user_progress WHERE user_id = ? AND attempts > 0",
-            (user_id,)
-        )
-        attempted = (await cursor.fetchone())[0]
-
         cursor = await db.execute("""
-            SELECT SUM(correct_count), SUM(attempts) FROM user_progress
-            WHERE user_id = ? AND attempts > 0
-        """, (user_id,))
-        row = await cursor.fetchone()
-        recall_rate = round(row[0] / row[1] * 100, 1) if row[1] else 0.0
-
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM user_progress WHERE user_id = ? AND next_review_date <= ?",
-            (user_id, today)
-        )
-        due_today = (await cursor.fetchone())[0]
+            SELECT
+                COUNT(CASE WHEN up.mastered = 1 THEN 1 END),
+                COUNT(CASE WHEN up.attempts > 0 THEN 1 END),
+                COALESCE(SUM(CASE WHEN up.attempts > 0 THEN up.correct_count ELSE 0 END), 0),
+                COALESCE(SUM(up.attempts), 0),
+                COUNT(CASE WHEN up.next_review_date <= ? THEN 1 END)
+            FROM user_progress up
+            JOIN questions q ON q.id = up.question_id
+            WHERE up.user_id = ? AND q.domain BETWEEN 1 AND 7
+        """, (today, user_id))
+        mastered, attempted, correct, attempts, due_today = await cursor.fetchone()
+        recall_rate = round(correct / attempts * 100, 1) if attempts else 0.0
 
         domain_stats = await compute_domain_mastery(user_id)
         domains = []
-        for d_num in range(1, 7):
+        for d_num in range(1, 8):
             stats = domain_stats.get(d_num, {})
             cursor = await db.execute(
                 "SELECT COUNT(*) FROM questions WHERE domain = ?", (d_num,)
@@ -66,7 +56,7 @@ async def dashboard(
                 domain=d_num,
                 name=DOMAIN_NAMES.get(d_num, f"Domain {d_num}"),
                 total_questions=total_d,
-                mastered=round(stats.get("mastered_pct", 0) / 100 * total_d),
+                mastered=stats.get("mastered", 0),
                 attempted=stats.get("attempted", 0),
             ))
 

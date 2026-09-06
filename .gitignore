@@ -4,15 +4,15 @@ __pycache__/
 *.egg-info/
 .eggs/
 *.egg
+.venv/
+.pytest_cache/
+*.tsbuildinfo
 
 # Node
 node_modules/
 .next/
 out/
 *.log
-
-# Docker
-.dockerignore
 
 # Data (keep the directory, not contents)
 data/
@@ -31,3 +31,7 @@ data/
 .DS_Store
 Thumbs.db
 backend/extraction/images/
+
+# Local agent and worktree state
+.superpowers/
+.worktrees/

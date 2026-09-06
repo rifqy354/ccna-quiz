@@ -13,10 +13,11 @@ export default function DomainsPage() {
   const { token } = useAuth();
   const [domains, setDomains] = useState<DomainSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error,setError] = useState('');
 
   useEffect(() => {
     if (!token) return;
-    api.domains.list(token).then(setDomains).finally(() => setLoading(false));
+    api.domains.list(token).then(setDomains).catch(e=>setError(e.message)).finally(() => setLoading(false));
   }, [token]);
 
   return (
@@ -24,8 +25,8 @@ export default function DomainsPage() {
       <NavBar />
       <div className="container page">
         <h1 style={{ marginBottom: '0.5rem' }}>CCNA Exam Domains</h1>
-        <p style={{ color: '#6b7280', marginBottom: '2rem' }}>6 domains cover all CCNA 200-301 exam topics.</p>
-        {loading ? <p>Loading...</p> : (
+        <p style={{ color: '#6b7280', marginBottom: '2rem' }}>Browse the available CCNA exam domains.</p>
+        {error ? <p role="alert">{error}</p> : loading ? <p>Loading...</p> : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
             {domains.map(d => {
               const pct = d.total_questions > 0 ? Math.round(d.mastered / d.total_questions * 100) : 0;

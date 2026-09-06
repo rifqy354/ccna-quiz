@@ -1,0 +1,16 @@
+services:
+  nginx:
+    ports:
+      - "${HTTPS_BIND:-127.0.0.1}:${HTTPS_PORT:-8443}:443"
+    volumes:
+      - ./nginx/nginx.production.conf:/etc/nginx/nginx.conf:ro
+      - ${CERTBOT_WEBROOT:-./data/certbot}:/var/www/certbot:ro
+      - ${LETSENCRYPT_DIR:-./data/letsencrypt}:/etc/letsencrypt:ro
+
+  frontend:
+    build:
+      network: host
+
+  backend:
+    build:
+      network: host

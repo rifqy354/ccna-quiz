@@ -15,4 +15,4 @@ button.success { background: #10b981; }
 button.success:hover { background: #059669; }
 .card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; }
 .container { max-width: 900px; margin: 0 auto; padding: 0 1rem; }
-.page { padding: 2rem 0; }
+.page { padding-top: 2rem; padding-bottom: 2rem; }

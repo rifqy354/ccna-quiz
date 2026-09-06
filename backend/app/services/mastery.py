@@ -17,7 +17,7 @@ async def compute_domain_mastery(user_id: int) -> dict:
                 SUM(up.attempts) as total_attempts
             FROM questions q
             LEFT JOIN user_progress up ON up.question_id = q.id AND up.user_id = ?
-            WHERE q.domain BETWEEN 1 AND 6
+            WHERE q.domain BETWEEN 1 AND 7
             GROUP BY q.domain
         """, (user_id,))
         rows = await cursor.fetchall()
@@ -30,6 +30,7 @@ async def compute_domain_mastery(user_id: int) -> dict:
             total_correct = row[4] or 0
             total_attempts = row[5] or 0
             domains[row[0]] = {
+                "mastered": mastered,
                 "mastered_pct": round(mastered / total * 100, 1) if total else 0,
                 "attempted": attempted,
                 "recall_rate": round(total_correct / total_attempts * 100, 1) if total_attempts else 0,
@@ -43,7 +44,7 @@ async def get_study_streak(user_id: int) -> int:
         cursor = await db.execute("""
             SELECT DISTINCT DATE(completed_at) as study_date
             FROM study_sessions
-            WHERE user_id = ? AND completed_at IS NOT NULL
+            WHERE user_id = ? AND completed_at IS NOT NULL AND questions_shown > 0
             ORDER BY study_date DESC
         """, (user_id,))
         rows = await cursor.fetchall()
@@ -52,10 +53,12 @@ async def get_study_streak(user_id: int) -> int:
 
         streak = 0
         today = date.today()
-        expected = today
+        expected = date.fromisoformat(rows[0][0])
+        if expected not in (today, today - timedelta(days=1)):
+            return 0
         for row in rows:
             d = date.fromisoformat(row[0])
-            if d == expected or d == expected - timedelta(days=1):
+            if d == expected:
                 streak += 1
                 expected = d - timedelta(days=1)
             else:
@@ -68,6 +71,8 @@ async def get_weak_areas(user_id: int, threshold: float = 60.0) -> List[dict]:
     async with get_db() as db:
         cursor = await db.execute("""
             SELECT
+                q.source_book,
+                q.source_chapter,
                 q.sub_domain,
                 q.sub_domain_name,
                 q.domain,
@@ -76,7 +81,7 @@ async def get_weak_areas(user_id: int, threshold: float = 60.0) -> List[dict]:
             FROM questions q
             LEFT JOIN user_progress up ON up.question_id = q.id AND up.user_id = ?
             WHERE q.sub_domain IS NOT NULL AND up.attempts > 0
-            GROUP BY q.sub_domain
+            GROUP BY q.source_book, q.source_chapter, q.domain, q.sub_domain, q.sub_domain_name
             HAVING total > 0 AND (CAST(correct AS REAL) / total * 100) < ?
             ORDER BY (CAST(correct AS REAL) / total * 100) ASC
             LIMIT 10

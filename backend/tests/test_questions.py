@@ -37,7 +37,7 @@ async def test_domains_returns_6_domains(client, auth_headers):
     resp = await client.get("/api/domains", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 6
+    assert len(data) == 7
     assert all("domain" in d and "name" in d and "total_questions" in d for d in data)
 
 
@@ -64,4 +64,10 @@ async def test_domain_invalid_id(client, auth_headers):
 @pytest.mark.asyncio
 async def test_random_question_with_domain_filter(client, auth_headers):
     resp = await client.get("/api/questions/random?domain=1", headers=auth_headers)
+    assert resp.status_code in (200, 404)
+
+
+@pytest.mark.asyncio
+async def test_random_question_domain_7(client, auth_headers):
+    resp = await client.get("/api/questions/random?domain=7", headers=auth_headers)
     assert resp.status_code in (200, 404)

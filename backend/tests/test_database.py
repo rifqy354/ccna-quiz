@@ -105,7 +105,7 @@ async def test_questions_columns(fresh_db):
         "sub_domain", "sub_domain_name", "question_text", "question_image",
         "option_a", "option_b", "option_c", "option_d", "correct_option",
         "explanation", "ocg_chapter_ref", "ocg_section_ref", "difficulty",
-        "created_at",
+        "created_at", "option_e", "option_f", "option_g",
     }
     assert set(cols) == expected
 
@@ -192,3 +192,15 @@ async def test_init_db_idempotent(fresh_db):
 
     await db_module.init_db()  # call again — should not raise
     assert await table_exists(fresh_db, "users")
+
+
+async def test_init_db_upgrades_legacy_options(fresh_db):
+    import app.database as db_module
+
+    async with aiosqlite.connect(fresh_db) as db:
+        for letter in "efg":
+            await db.execute(f"ALTER TABLE questions DROP COLUMN option_{letter}")
+        await db.commit()
+    await db_module.init_db()
+    await db_module.init_db()
+    assert {"option_e", "option_f", "option_g"} <= set(await table_columns(fresh_db, "questions"))

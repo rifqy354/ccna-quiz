@@ -1,6 +1,8 @@
 """Study sessions router — start, answer, complete."""
-from fastapi import APIRouter, Depends, HTTPException
-from datetime import datetime
+import asyncio
+from contextlib import asynccontextmanager
+from fastapi import APIRouter, Depends, HTTPException, Response
+from datetime import datetime, timezone
 from ..models import (
     SessionStartRequest, SessionStartResponse, AnswerRequest,
     AnswerResponse, SessionSummary, QuestionResponse,
@@ -8,10 +10,24 @@ from ..models import (
 from ..database import get_db
 from ..auth import get_current_user
 from ..services.sr_scheduler import compute_next_review, select_session_questions
+from ..services.grading import is_correct_answer, normalize_selection, is_multi_answer as _is_multi
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 _session_cache: dict[int, dict] = {}
+
+
+@asynccontextmanager
+async def _locked_session(session_id: int, user_id: int):
+    """Serialize mutations of a session in the existing in-process cache."""
+    cache = _session_cache.get(session_id)
+    if not cache or cache["user_id"] != user_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    async with cache["lock"]:
+        # Completion may have removed the session while this request waited.
+        if _session_cache.get(session_id) is not cache:
+            raise HTTPException(status_code=404, detail="Session not found")
+        yield cache
 
 
 @router.post("/start", response_model=SessionStartResponse)
@@ -22,11 +38,11 @@ async def start_session(
     async with get_db() as db:
         if data.domain:
             cursor = await db.execute(
-                "SELECT * FROM questions WHERE domain = ? AND domain BETWEEN 1 AND 6",
+                "SELECT * FROM questions WHERE domain = ? AND domain BETWEEN 1 AND 7",
                 (data.domain,)
             )
         else:
-            cursor = await db.execute("SELECT * FROM questions WHERE domain BETWEEN 1 AND 6")
+            cursor = await db.execute("SELECT * FROM questions WHERE domain BETWEEN 1 AND 7")
         all_questions = [dict(r) for r in await cursor.fetchall()]
 
         if not all_questions:
@@ -35,7 +51,10 @@ async def start_session(
         qids = [q["id"] for q in all_questions]
         placeholders = ",".join("?" * len(qids))
         cursor = await db.execute(
-            f"SELECT * FROM user_progress WHERE user_id = ? AND question_id IN ({placeholders})",
+            # Exclude the progress row's own ID so merging cannot replace q.id.
+            "SELECT question_id, attempts, correct_count, consecutive_correct, "
+            "ease_factor, interval_days, next_review_date, mastered, mastered_at, last_attempt_at "
+            f"FROM user_progress WHERE user_id = ? AND question_id IN ({placeholders})",
             [current_user["id"]] + qids
         )
         progress_map = {r["question_id"]: dict(r) for r in await cursor.fetchall()}
@@ -59,6 +78,7 @@ async def start_session(
             "questions": selected,
             "index": 0,
             "correct_count": 0,
+            "lock": asyncio.Lock(),
         }
 
         return SessionStartResponse(
@@ -79,7 +99,7 @@ async def get_next_question(
 
     idx = cache["index"]
     if idx >= len(cache["questions"]):
-        raise HTTPException(status_code=200, detail="No more questions")
+        return Response(status_code=204)
 
     q = cache["questions"][idx]
     return QuestionResponse(
@@ -96,6 +116,10 @@ async def get_next_question(
         option_b=q["option_b"],
         option_c=q["option_c"],
         option_d=q["option_d"],
+        option_e=q.get("option_e"),
+        option_f=q.get("option_f"),
+        option_g=q.get("option_g"),
+        is_multi_answer=_is_multi(q.get("correct_option", "")),
     )
 
 
@@ -105,36 +129,56 @@ async def answer_question(
     data: AnswerRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    cache = _session_cache.get(session_id)
-    if not cache or cache["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=404, detail="Session not found")
+    async with _locked_session(session_id, current_user["id"]) as cache:
+        return await _answer_current_question(session_id, data, current_user, cache)
 
+
+async def _answer_current_question(session_id: int, data: AnswerRequest, current_user: dict, cache: dict):
     idx = cache["index"]
+    if idx >= len(cache["questions"]):
+        raise HTTPException(status_code=409, detail="No unanswered questions remain in this session")
     q = cache["questions"][idx]
 
-    is_correct = data.selected_option == q["correct_option"]
+    # Prevent submitting the same question twice (e.g. double-tap on frontend).
+    # If the question_id doesn't match the current cache question, the session
+    # has already moved on — reject the stale submission.
+    if q["id"] != data.question_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Submitted question is not the current unanswered question"
+        )
 
-    current_progress = {
-        "ease_factor": q.get("ease_factor", 2.5),
-        "interval_days": q.get("interval_days", 1),
-        "consecutive_correct": q.get("consecutive_correct", 0),
-    }
-    sr = compute_next_review(
-        data.confidence,
-        current_progress["ease_factor"],
-        current_progress["interval_days"],
-        current_progress["consecutive_correct"],
-    )
+    correct_option = q.get("correct_option", "")
+
+    # Normalize user selection and compare
+    try:
+        user_canonical = normalize_selection(data.selected_options)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid selection: must be at least one option letter from A–G")
+
+    if any(not q.get(f"option_{letter.lower()}") for letter in user_canonical):
+        raise HTTPException(status_code=422, detail="Selected option is not available for this question")
+
+    is_correct = is_correct_answer(user_canonical, correct_option)
 
     async with get_db() as db:
-        from datetime import date as date_cls
-        today = date_cls.today().isoformat()
-
+        # Other open sessions may have changed this question's learning state.
+        # Serialize the read and update so a stale session cannot restore a streak.
+        await db.execute("BEGIN IMMEDIATE")
         cursor = await db.execute(
-            "SELECT id FROM user_progress WHERE user_id = ? AND question_id = ?",
+            "SELECT * FROM user_progress WHERE user_id = ? AND question_id = ?",
             (current_user["id"], q["id"])
         )
         existing = await cursor.fetchone()
+        progress = dict(existing) if existing else {}
+        sr = compute_next_review(
+            data.confidence,
+            progress.get("ease_factor", 2.5),
+            progress.get("interval_days", 1),
+            progress.get("consecutive_correct", 0),
+            is_correct=is_correct,
+        )
+        mastered_at = (progress.get("mastered_at") or sr.mastered_at) if sr.mastered else None
 
         if existing:
             await db.execute("""
@@ -146,7 +190,7 @@ async def answer_question(
                     interval_days = ?,
                     next_review_date = ?,
                     mastered = ?,
-                    mastered_at = COALESCE(mastered_at, ?),
+                    mastered_at = ?,
                     last_attempt_at = ?
                 WHERE user_id = ? AND question_id = ?
             """, (
@@ -156,8 +200,8 @@ async def answer_question(
                 sr.interval_days,
                 sr.next_review_date.isoformat(),
                 1 if sr.mastered else 0,
-                sr.mastered_at,
-                datetime.utcnow().isoformat(),
+                mastered_at,
+                datetime.now(timezone.utc).isoformat(),
                 current_user["id"],
                 q["id"],
             ))
@@ -175,8 +219,8 @@ async def answer_question(
                 sr.interval_days,
                 sr.next_review_date.isoformat(),
                 1 if sr.mastered else 0,
-                sr.mastered_at,
-                datetime.utcnow().isoformat(),
+                mastered_at,
+                datetime.now(timezone.utc).isoformat(),
             ))
 
         await db.execute("""
@@ -185,17 +229,20 @@ async def answer_question(
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             current_user["id"], q["id"], session_id,
-            data.selected_option, is_correct, data.confidence, data.response_time_ms
+            user_canonical, is_correct, data.confidence, data.response_time_ms
         ))
-
-        if is_correct:
-            cache["correct_count"] += 1
 
         await db.commit()
 
+        # Publish the committed result together, before releasing the session lock.
+        if is_correct:
+            cache["correct_count"] += 1
+        cache["index"] += 1
+
     return AnswerResponse(
         is_correct=is_correct,
-        correct_option=q["correct_option"],
+        correct_option=correct_option,
+        user_selection=user_canonical,
         explanation=q["explanation"],
         ocg_chapter_ref=q.get("ocg_chapter_ref"),
         ocg_section_ref=q.get("ocg_section_ref"),
@@ -209,12 +256,13 @@ async def complete_session(
     session_id: int,
     current_user: dict = Depends(get_current_user),
 ):
-    cache = _session_cache.get(session_id)
-    if not cache or cache["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=404, detail="Session not found")
+    async with _locked_session(session_id, current_user["id"]) as cache:
+        return await _complete_locked_session(session_id, cache)
 
-    completed_at = datetime.utcnow()
-    questions_shown = len(cache["questions"])
+
+async def _complete_locked_session(session_id: int, cache: dict):
+    completed_at = datetime.now(timezone.utc)
+    questions_shown = cache["index"]
     correct_count = cache["correct_count"]
     accuracy = round(correct_count / questions_shown * 100, 1) if questions_shown > 0 else 0.0
 

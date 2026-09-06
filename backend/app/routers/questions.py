@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from ..models import DomainSummary, QuestionResponse
 from ..database import get_db
 from ..auth import get_current_user
+from ..services.grading import is_multi_answer
 
 router = APIRouter(prefix="/api", tags=["questions"])
 
@@ -13,6 +14,7 @@ DOMAIN_NAMES = {
     4: "IP Services",
     5: "Security Fundamentals",
     6: "Automation and Programmability",
+    7: "Practice Exams",
 }
 
 
@@ -22,7 +24,7 @@ async def list_domains(
 ):
     async with get_db() as db:
         results = []
-        for domain_num in range(1, 7):
+        for domain_num in range(1, 8):
             cursor = await db.execute(
                 "SELECT COUNT(*) as cnt FROM questions WHERE domain = ?", (domain_num,)
             )
@@ -56,7 +58,7 @@ async def get_domain(
     domain_id: int,
     current_user: dict = Depends(get_current_user),
 ):
-    if domain_id < 1 or domain_id > 6:
+    if domain_id < 1 or domain_id > 7:
         raise HTTPException(status_code=404, detail="Domain not found")
 
     async with get_db() as db:
@@ -78,7 +80,7 @@ async def get_domain(
 
 @router.get("/questions/random", response_model=QuestionResponse)
 async def get_random_question(
-    domain: int = Query(default=None, ge=1, le=6),
+    domain: int = Query(default=None, ge=1, le=7),
     current_user: dict = Depends(get_current_user),
 ):
     async with get_db() as db:
@@ -94,4 +96,6 @@ async def get_random_question(
         row = await cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="No questions found")
-        return dict(row)
+        question = dict(row)
+        question["is_multi_answer"] = is_multi_answer(question.get("correct_option", ""))
+        return question

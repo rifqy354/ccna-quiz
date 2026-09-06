@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /app/backend
 
 # Install dependencies first (layer cache optimization)
 COPY requirements.txt .
@@ -14,7 +14,7 @@ COPY extraction/ ./extraction/
 # Create data dirs
 RUN mkdir -p /app/data /app/data/images && chmod 755 /app/data
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/backend
 ENV DATABASE_URL=sqlite+aiosqlite:///data/ccna.db
 
 EXPOSE 8000

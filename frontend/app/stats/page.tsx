@@ -8,15 +8,17 @@ export default function StatsPage() {
   const { token } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error,setError] = useState('');
 
   useEffect(() => {
     if (!token) return;
-    api.stats.dashboard(token).then(setStats).finally(() => setLoading(false));
+    api.stats.dashboard(token).then(setStats).catch(e=>setError(e.message)).finally(() => setLoading(false));
   }, [token]);
 
   if (loading) return <div><NavBar /><div className="container page"><p>Loading...</p></div></div>;
 
-  const s = stats!;
+  if (!stats) return <div><NavBar/><div className="container page"><p role="alert">{error || 'Unable to load statistics'}</p><button onClick={() => window.location.reload()}>Retry</button></div></div>;
+  const s = stats;
   const recallRate = s.overall_recall_rate;
 
   return (

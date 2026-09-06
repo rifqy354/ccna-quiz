@@ -22,3 +22,6 @@ class ExtractedQuestion:
     ocg_chapter_ref: Optional[str]
     ocg_section_ref: Optional[str]
     difficulty: int = 2
+    option_e: str = ""
+    option_f: str = ""
+    option_g: str = ""

@@ -1,6 +1,4 @@
-\
 'use client';
-import { useState } from 'react';
 import { QuestionResponse, AnswerResponse } from '@/lib/api';
 
 interface QuizCardProps {
@@ -14,12 +12,31 @@ interface QuizCardProps {
   onOptionChange: (opt: string) => void;
 }
 
-const OPTIONS = [
-  { key: 'A', label: 'A' },
-  { key: 'B', label: 'B' },
-  { key: 'C', label: 'C' },
-  { key: 'D', label: 'D' },
-] as const;
+// Derive the ordered list of available option letters from a question response.
+function getOptionKeys(q: QuestionResponse): string[] {
+  const keys: string[] = [];
+  if (q.option_a) keys.push('A');
+  if (q.option_b) keys.push('B');
+  if (q.option_c) keys.push('C');
+  if (q.option_d) keys.push('D');
+  if (q.option_e) keys.push('E');
+  if (q.option_f) keys.push('F');
+  if (q.option_g) keys.push('G');
+  return keys;
+}
+
+// Build option map from question response
+function getOptionMap(q: QuestionResponse): Record<string, string> {
+  const map: Record<string, string> = {};
+  if (q.option_a) map['A'] = q.option_a;
+  if (q.option_b) map['B'] = q.option_b;
+  if (q.option_c) map['C'] = q.option_c;
+  if (q.option_d) map['D'] = q.option_d;
+  if (q.option_e) map['E'] = q.option_e;
+  if (q.option_f) map['F'] = q.option_f;
+  if (q.option_g) map['G'] = q.option_g;
+  return map;
+}
 
 export default function QuizCard({
   question, questionNumber, totalQuestions,
@@ -34,13 +51,12 @@ export default function QuizCard({
     const correct = key === answerResult?.correct_option;
     const wrong = selectedOption === key && !correct;
     if (correct) return { background: '#d1fae5', borderColor: '#10b981' };
-    if (wrong) return { background: '#fee2e2', borderColor: '#ef4444', opacity: 0.6 };
-    return { background: 'white', opacity: 0.5 };
+    if (wrong) return { background: '#fee2e2', borderColor: '#ef4444', opacity: 1 };
+    return { background: 'white', opacity: 1 };
   };
 
-  const optionMap: Record<string, string> = {
-    A: question.option_a, B: question.option_b, C: question.option_c, D: question.option_d,
-  };
+  const optionKeys = getOptionKeys(question);
+  const optionMap = getOptionMap(question);
 
   return (
     <div>
@@ -62,14 +78,14 @@ export default function QuizCard({
 
       {/* Options */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '1rem' }}>
-        {OPTIONS.map(({ key }) => (
+        {optionKeys.map(key => (
           <button
             key={key}
             onClick={() => !showResult && onOptionChange(key)}
             disabled={showResult}
             style={{
               display: 'flex', gap: '0.75rem', padding: '0.875rem 1rem',
-              textAlign: 'left', border: '2px solid #d1d5db', borderRadius: '8px',
+              textAlign: 'left', color: '#111827', border: '2px solid #d1d5db', borderRadius: '8px',
               cursor: showResult ? 'default' : 'pointer', transition: 'all 0.15s',
               fontSize: '1rem', fontFamily: 'inherit', width: '100%', ...getStyle(key),
             }}

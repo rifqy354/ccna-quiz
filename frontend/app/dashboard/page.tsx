@@ -16,11 +16,12 @@ export default function DashboardPage() {
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error,setError] = useState('');
 
   useEffect(() => {
     if (!authLoading && !user) { router.push('/login'); return; }
     if (!token) return;
-    api.stats.dashboard(token).then(setStats).finally(() => setLoading(false));
+    api.stats.dashboard(token).then(setStats).catch(e=>setError(e.message)).finally(() => setLoading(false));
   }, [user, token, authLoading, router]);
 
   if (authLoading || loading) return (
@@ -29,7 +30,8 @@ export default function DashboardPage() {
     </div>
   );
 
-  const s = stats!;
+  if (!stats) return <div><NavBar/><div className="container page"><p role="alert">{error || 'Unable to load statistics'}</p><button onClick={() => window.location.reload()}>Retry</button></div></div>;
+  const s = stats;
 
   return (
     <div>

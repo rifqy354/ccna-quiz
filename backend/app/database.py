@@ -23,9 +23,9 @@ def _resolve_db_path() -> str:
 
     # Strip the aiosqlite driver prefix for aiosqlite.connect()
     if url.startswith("sqlite+aiosqlite:///"):
-        path = url.removeprefix("sqlite+aiosqlite:///").lstrip("/")
+        path = url.removeprefix("sqlite+aiosqlite:///")
     elif url.startswith("sqlite:///"):
-        path = url.removeprefix("sqlite:///").lstrip("/")
+        path = url.removeprefix("sqlite:///")
     else:
         path = url
 
@@ -76,6 +76,9 @@ async def init_db() -> None:
                 option_b        TEXT NOT NULL,
                 option_c        TEXT NOT NULL,
                 option_d        TEXT NOT NULL,
+                option_e        TEXT,
+                option_f        TEXT,
+                option_g        TEXT,
                 correct_option  TEXT NOT NULL,
                 explanation     TEXT NOT NULL,
                 ocg_chapter_ref TEXT,
@@ -84,6 +87,14 @@ async def init_db() -> None:
                 created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+
+        # Upgrade legacy question banks without replacing questions or their IDs.
+        await db.execute("BEGIN IMMEDIATE")
+        cursor = await db.execute("PRAGMA table_info(questions)")
+        columns = {row[1] for row in await cursor.fetchall()}
+        for column in ("option_e", "option_f", "option_g"):
+            if column not in columns:
+                await db.execute(f"ALTER TABLE questions ADD COLUMN {column} TEXT")
 
         # ── user_progress (SR state) ────────────────────────────────────────────
         await db.execute("""

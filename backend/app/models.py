@@ -1,7 +1,7 @@
 """Pydantic request/response models."""
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, Literal
 
 
 class UserCreate(BaseModel):
@@ -54,11 +54,16 @@ class QuestionResponse(BaseModel):
     option_b: str
     option_c: str
     option_d: str
+    option_e: Optional[str] = None
+    option_f: Optional[str] = None
+    option_g: Optional[str] = None
+    # Hint for frontend: true when the correct answer requires multiple selections
+    is_multi_answer: bool = False
 
 
 class SessionStartRequest(BaseModel):
-    domain: Optional[int] = Field(default=None, ge=1, le=6)
-    session_type: str = "mixed"
+    domain: Optional[int] = Field(default=None, ge=1, le=7)
+    session_type: Literal["mixed", "new", "review"] = "mixed"
     count: int = Field(default=10, ge=1, le=50)
 
 
@@ -69,15 +74,18 @@ class SessionStartResponse(BaseModel):
 
 
 class AnswerRequest(BaseModel):
-    question_id: int
-    selected_option: str
+    question_id: int = Field(..., gt=0)
+    # New multi-answer format: list of selected option letters
+    selected_options: list[str] = Field(..., min_length=1)
     confidence: str = Field(..., pattern="^(again|hard|good|easy)$")
-    response_time_ms: Optional[int] = None
+    response_time_ms: Optional[int] = Field(default=None, ge=0)
 
 
 class AnswerResponse(BaseModel):
     is_correct: bool
     correct_option: str
+    # Canonical form of what the user selected (e.g. "BDE"), for display
+    user_selection: str
     explanation: str
     ocg_chapter_ref: Optional[str] = None
     ocg_section_ref: Optional[str] = None

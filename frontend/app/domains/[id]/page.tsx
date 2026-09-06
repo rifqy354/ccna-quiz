@@ -17,14 +17,16 @@ export default function DomainDetailPage() {
   const { token } = useAuth();
   const [detail, setDetail] = useState<{ domain: number; name: string; sub_domains: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error,setError] = useState('');
 
   useEffect(() => {
-    if (!token || isNaN(domainId)) return;
-    api.domains.get(domainId, token).then(setDetail).finally(() => setLoading(false));
+    if (!Number.isInteger(domainId)) { setError('Invalid domain'); setLoading(false); return; }
+    if (!token) return;
+    api.domains.get(domainId, token).then(setDetail).catch(e=>setError(e.message)).finally(() => setLoading(false));
   }, [token, domainId]);
 
   if (loading) return <div><NavBar /><div className="container page"><p>Loading...</p></div></div>;
-  if (!detail) return <div><NavBar /><div className="container page"><p>Domain not found.</p></div></div>;
+  if (!detail) return <div><NavBar /><div className="container page"><p>{error || 'Domain not found.'}</p></div></div>;
 
   return (
     <div>
