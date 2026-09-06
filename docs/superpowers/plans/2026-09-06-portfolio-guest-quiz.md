@@ -36,7 +36,7 @@
 - Consumes: the already verified 1,546-question CCNA application and production deployment changes.
 - Produces: a clean Git baseline before guest identity changes begin.
 
-- [ ] **Step 1: Ignore the local brainstorming runtime**
+- [x] **Step 1: Ignore the local brainstorming runtime**
 
 Add this repository-local line to `.gitignore`:
 
@@ -44,7 +44,7 @@ Add this repository-local line to `.gitignore`:
 .superpowers/
 ```
 
-- [ ] **Step 2: Re-run the existing baseline checks**
+- [x] **Step 2: Re-run the existing baseline checks**
 
 ```bash
 PYTHONPATH=backend .venv/bin/python -m pytest -q
@@ -55,7 +55,7 @@ git diff --check
 
 Expected: 218 passed and one optional skip in the backend baseline, 12 frontend tests pass, the Next build succeeds, production Compose checks pass, and no whitespace errors remain. If counts change because the feature work has already begun, stop and reconcile the working tree before this commit.
 
-- [ ] **Step 3: Review and commit only the completed baseline**
+- [x] **Step 3: Review and commit only the completed baseline**
 
 ```bash
 git add -A
@@ -76,7 +76,7 @@ Confirm `git status --short` contains no `.superpowers/` path before committing.
 - Consumes: Existing `init_db() -> None` and SQLite `users(id)` ownership.
 - Produces: `guest_players(user_id, public_id, display_name, created_at, last_seen_at)` and `challenge_records(id, user_id, score, correct_count, wrong_count, completed_at)`.
 
-- [ ] **Step 1: Write schema tests that preserve the existing database**
+- [x] **Step 1: Write schema tests that preserve the existing database**
 
 Add tests that create a legacy database, run `init_db()`, and assert both new tables, foreign keys, checks, and indexes exist without changing an existing question ID:
 
@@ -95,13 +95,13 @@ async def test_init_adds_guest_and_challenge_tables_without_replacing_data():
         assert await (await db.execute("SELECT id FROM questions WHERE id=91")).fetchone()
 ```
 
-- [ ] **Step 2: Run the focused schema test and confirm it fails**
+- [x] **Step 2: Run the focused schema test and confirm it fails**
 
 Run: `PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_database.py -q`
 
 Expected: FAIL because `guest_players` and `challenge_records` do not exist.
 
-- [ ] **Step 3: Add the two tables and ordering index**
+- [x] **Step 3: Add the two tables and ordering index**
 
 Extend `init_db()` with additive `CREATE TABLE IF NOT EXISTS` statements:
 
@@ -130,7 +130,7 @@ await db.execute("""
 await db.execute("CREATE INDEX IF NOT EXISTS idx_challenge_rank ON challenge_records(score DESC, completed_at ASC, id ASC)")
 ```
 
-- [ ] **Step 4: Run schema and full backend tests**
+- [x] **Step 4: Run schema and full backend tests**
 
 Run: `PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_database.py -q`
 
@@ -140,7 +140,7 @@ Run: `PYTHONPATH=backend .venv/bin/python -m pytest -q`
 
 Expected: Existing suite remains green.
 
-- [ ] **Step 5: Commit the additive migration**
+- [x] **Step 5: Commit the additive migration**
 
 ```bash
 git add backend/app/database.py backend/tests/test_database.py

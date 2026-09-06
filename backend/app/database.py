@@ -6,6 +6,8 @@ Tables created by init_db():
   3. user_progress
   4. study_sessions
   5. user_responses
+  6. guest_players
+  7. challenge_records
 """
 
 import aiosqlite
@@ -38,7 +40,7 @@ def _resolve_db_path() -> str:
 
 
 async def init_db() -> None:
-    """Create all five tables if they do not already exist."""
+    """Create application tables and additive indexes when absent."""
 
     db_path = _resolve_db_path()
     # Ensure the parent directory exists
@@ -144,6 +146,37 @@ async def init_db() -> None:
                 response_time_ms INTEGER,
                 answered_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+        """)
+
+        # ── guest_players (public cookie identities) ──────────────────────────
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS guest_players (
+                user_id      INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                public_id    TEXT UNIQUE NOT NULL,
+                display_name TEXT NOT NULL
+                    CHECK(length(trim(display_name)) BETWEEN 2 AND 24),
+                created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        # ── challenge_records (one best result per guest) ─────────────────────
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS challenge_records (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id       INTEGER UNIQUE NOT NULL
+                    REFERENCES users(id) ON DELETE CASCADE,
+                score         INTEGER NOT NULL CHECK(score BETWEEN 0 AND 100),
+                correct_count INTEGER NOT NULL CHECK(correct_count BETWEEN 0 AND 20),
+                wrong_count   INTEGER NOT NULL CHECK(wrong_count BETWEEN 0 AND 20),
+                completed_at  TIMESTAMP NOT NULL,
+                CHECK(correct_count + wrong_count = 20),
+                CHECK(score = correct_count * 5)
+            );
+        """)
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_challenge_rank
+            ON challenge_records(score DESC, completed_at ASC, id ASC);
         """)
 
         await db.commit()

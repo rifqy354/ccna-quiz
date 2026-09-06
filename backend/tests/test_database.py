@@ -90,6 +90,14 @@ async def test_user_responses_table_created(fresh_db):
     assert await table_exists(fresh_db, "user_responses")
 
 
+async def test_guest_players_table_created(fresh_db):
+    assert await table_exists(fresh_db, "guest_players")
+
+
+async def test_challenge_records_table_created(fresh_db):
+    assert await table_exists(fresh_db, "challenge_records")
+
+
 # ─── Column schema tests ────────────────────────────────────────────────────────
 
 async def test_users_columns(fresh_db):
@@ -136,6 +144,20 @@ async def test_user_responses_columns(fresh_db):
         "is_correct", "confidence", "response_time_ms", "answered_at",
     }
     assert set(cols) == expected
+
+
+async def test_guest_players_columns(fresh_db):
+    cols = await table_columns(fresh_db, "guest_players")
+    assert set(cols) == {
+        "user_id", "public_id", "display_name", "created_at", "last_seen_at",
+    }
+
+
+async def test_challenge_records_columns(fresh_db):
+    cols = await table_columns(fresh_db, "challenge_records")
+    assert set(cols) == {
+        "id", "user_id", "score", "correct_count", "wrong_count", "completed_at",
+    }
 
 
 # ─── Constraints ──────────────────────────────────────────────────────────────
@@ -204,3 +226,74 @@ async def test_init_db_upgrades_legacy_options(fresh_db):
     await db_module.init_db()
     await db_module.init_db()
     assert {"option_e", "option_f", "option_g"} <= set(await table_columns(fresh_db, "questions"))
+
+
+async def test_guest_public_id_and_challenge_user_are_unique(fresh_db):
+    async with aiosqlite.connect(fresh_db) as db:
+        await db.executemany(
+            "INSERT INTO users(id,email,password_hash,name) VALUES(?,?,?,?)",
+            [(41, "one@internal.invalid", "!", "One"),
+             (42, "two@internal.invalid", "!", "Two")],
+        )
+        await db.execute(
+            "INSERT INTO guest_players(user_id,public_id,display_name) VALUES(41,'guest-one','Player')"
+        )
+        await db.execute(
+            "INSERT INTO challenge_records(user_id,score,correct_count,wrong_count,completed_at) "
+            "VALUES(41,50,10,10,'2026-09-06T00:00:00Z')"
+        )
+        await db.commit()
+
+        with pytest.raises(aiosqlite.IntegrityError):
+            await db.execute(
+                "INSERT INTO guest_players(user_id,public_id,display_name) VALUES(42,'guest-one','Player')"
+            )
+        await db.rollback()
+
+        with pytest.raises(aiosqlite.IntegrityError):
+            await db.execute(
+                "INSERT INTO challenge_records(user_id,score,correct_count,wrong_count,completed_at) "
+                "VALUES(41,75,15,5,'2026-09-06T01:00:00Z')"
+            )
+
+
+async def test_challenge_record_checks_score_and_total(fresh_db):
+    async with aiosqlite.connect(fresh_db) as db:
+        await db.execute(
+            "INSERT INTO users(id,email,password_hash,name) VALUES(41,'guest@internal.invalid','!','Guest')"
+        )
+        for values in [(40, 10, 10), (50, 10, 9)]:
+            with pytest.raises(aiosqlite.IntegrityError):
+                await db.execute(
+                    "INSERT INTO challenge_records(user_id,score,correct_count,wrong_count,completed_at) "
+                    "VALUES(41,?,?,?,'2026-09-06T00:00:00Z')",
+                    values,
+                )
+            await db.rollback()
+
+
+async def test_additive_schema_preserves_existing_question_and_user(fresh_db):
+    import app.database as db_module
+
+    async with aiosqlite.connect(fresh_db) as db:
+        await db.execute(
+            "INSERT INTO users(id,email,password_hash,name) VALUES(41,'old@example.com','old','Old')"
+        )
+        await db.execute(
+            "INSERT INTO questions(id,source_book,source_chapter,book_title,domain,question_text,"
+            "option_a,option_b,option_c,option_d,correct_option,explanation) "
+            "VALUES(91,'book','1','Book',1,'Q','A','B','C','D','A','E')"
+        )
+        await db.commit()
+
+    await db_module.init_db()
+
+    async with aiosqlite.connect(fresh_db) as db:
+        assert await (await db.execute("SELECT id FROM users WHERE id=41")).fetchone()
+        assert await (await db.execute("SELECT id FROM questions WHERE id=91")).fetchone()
+        indexes = {
+            row[0] for row in await (await db.execute(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='challenge_records'"
+            )).fetchall()
+        }
+        assert "idx_challenge_rank" in indexes
