@@ -29,3 +29,31 @@ assert targets["/var/www/certbot"]["source"] == "/var/www/certbot"
 assert targets["/etc/letsencrypt"]["source"] == "/etc/letsencrypt"
 assert targets["/etc/nginx/nginx.conf"]["source"].endswith("nginx.production.conf")
 '
+
+production_nginx="$project_dir/nginx/nginx.production.conf"
+python3 -c '
+import pathlib
+import sys
+
+text = pathlib.Path(sys.argv[1]).read_text()
+assert "server_name email2.my.id quiz.email2.my.id;" in text
+assert "server_name email2.my.id;" in text
+assert "server_name quiz.email2.my.id;" in text
+assert "location /api/ {\n            return 404;" in text
+assert "location /api/ {\n            proxy_pass http://backend;" in text
+assert text.count("/etc/letsencrypt/live/email2.my.id/") == 4
+' "$production_nginx"
+
+temporary_cert_dir=$(mktemp -d)
+trap 'rm -rf "$temporary_cert_dir"' EXIT
+mkdir -p "$temporary_cert_dir/live/email2.my.id"
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+  -subj '/CN=email2.my.id' \
+  -keyout "$temporary_cert_dir/live/email2.my.id/privkey.pem" \
+  -out "$temporary_cert_dir/live/email2.my.id/fullchain.pem" >/dev/null 2>&1
+docker run --rm \
+  --add-host frontend:127.0.0.1 \
+  --add-host backend:127.0.0.1 \
+  -v "$production_nginx:/etc/nginx/nginx.conf:ro" \
+  -v "$temporary_cert_dir:/etc/letsencrypt:ro" \
+  nginx:alpine nginx -t

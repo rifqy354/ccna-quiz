@@ -758,7 +758,7 @@ git commit -m "feat: redesign quiz for guest players"
 - Public hosts: `email2.my.id` and `quiz.email2.my.id`.
 - Development hosts: `localhost` maps to portfolio; `quiz.localhost` maps to quiz.
 
-- [ ] **Step 1: Write pure host-routing tests**
+- [x] **Step 1: Write pure host-routing tests**
 
 ```typescript
 expect(routeForHost('email2.my.id', '/')).toEqual({kind: 'rewrite', destination: '/portfolio'});
@@ -770,25 +770,25 @@ expect(routeForHost('quiz.email2.my.id', '/writeups')).toEqual({kind: 'redirect'
 
 Ignore `/_next`, `/favicon.ico`, and static public assets.
 
-- [ ] **Step 2: Run host-routing tests and confirm the module is missing**
+- [x] **Step 2: Run host-routing tests and confirm the module is missing**
 
 Run: `cd frontend && npm test -- tests/host-routing.test.ts`
 
 Expected: FAIL because `host-routing.ts` does not exist.
 
-- [ ] **Step 3: Implement the pure routing table and middleware adapter**
+- [x] **Step 3: Implement the pure routing table and middleware adapter**
 
 Read `request.headers.get('host')`, remove its port, call `routeForHost`, then return `NextResponse.rewrite(new URL(destination, request.url))` or `NextResponse.redirect(destination)`. Configure the matcher to exclude `api`, `_next/static`, `_next/image`, and files with extensions.
 
-- [ ] **Step 4: Update development routing**
+- [x] **Step 4: Update development routing**
 
 Keep the same-origin `/api/:path*` Next rewrite to `INTERNAL_API_URL`. Document `http://localhost:3000` for portfolio and `http://quiz.localhost:3000` for quiz. Ensure middleware leaves `/api` untouched for the Next proxy.
 
-- [ ] **Step 5: Write production Nginx assertions**
+- [x] **Step 5: Write production Nginx assertions**
 
 Extend `tests/test-production-compose.sh` with `nginx -t` against the mounted production config and text assertions that both server names exist, apex `/api/` returns 404, quiz `/api/` proxies to backend, and both use the same expanded certificate.
 
-- [ ] **Step 6: Split Nginx host behavior**
+- [x] **Step 6: Split Nginx host behavior**
 
 The port 80 block accepts both names for ACME and redirects to the original host. Add separate TLS blocks:
 
@@ -814,7 +814,7 @@ server {
 
 Retain existing proxy headers, security headers, WebSocket support, ACME webroot, and `/etc/letsencrypt/live/email2.my.id/...` certificate paths.
 
-- [ ] **Step 7: Run routing, Compose, and build checks**
+- [x] **Step 7: Run routing, Compose, and build checks**
 
 Run: `cd frontend && npm test -- tests/host-routing.test.ts && npm run build`
 
@@ -822,7 +822,7 @@ Run: `JWT_SECRET_KEY=test-only-secret bash tests/test-production-compose.sh`
 
 Expected: both commands PASS.
 
-- [ ] **Step 8: Commit host routing**
+- [x] **Step 8: Commit host routing**
 
 ```bash
 git add frontend/lib/host-routing.ts frontend/middleware.ts frontend/tests/host-routing.test.ts frontend/next.config.mjs nginx/nginx.conf nginx/nginx.production.conf tests/test-production-compose.sh
