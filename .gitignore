@@ -22,6 +22,9 @@ data/
 .env
 .env.local
 
+# Local TLS material
+nginx/ssl/
+
 # IDE
 .vscode/
 .idea/
