@@ -1,51 +1,100 @@
-# Completion verification
+# Portfolio and guest quiz verification
 
-Verified 2026-09-06 for the existing local CCNA study application.
+Verified on 2026-09-07 against the isolated implementation branch and the
+production host at `/opt/ccna-quiz`.
 
-## Scope and schema
+## Schema decision
 
-FastAPI, SQLite and Next.js remain the application stack. Questions retain flat option columns A–G; E–G are nullable. Correct answers use canonical letter sets, with exact-set grading for multiple answers. Database initialization adds missing option columns to older databases. The existing bank has already received its option backfill; no further manual migration is required for this workspace. Import and backfill instructions are in the README.
+The existing `users.id` remains the ownership key for study history. Two
+additive tables were introduced:
 
-Study sessions remain in process memory as requested. User accounts, answers and learning progress are stored in SQLite. Resuming active sessions after restart and reconstructing historical session state remain excluded.
+- `guest_players` maps an internal user to a random public identifier and
+  display name.
+- `challenge_records` stores one best completed 20-question record per guest.
 
-## Changes
+Existing questions, users, progress, sessions, responses, and question IDs were
+preserved. Guest identity uses a signed, one-year, HTTP-only cookie. Production
+sets `Secure`, `SameSite=Lax`, and domain `quiz.email2.my.id`; local HTTP
+development uses a host-only non-Secure cookie.
 
-- Backend authentication, question/session contracts, answer grading, spaced repetition, mastery statistics and concurrency handling.
-- Extraction parsers, identity-preserving imports and option backfill.
-- Frontend API/authentication handling, quiz selection/submission/completion, dashboard, domains and statistics.
-- Backend and frontend regression tests, isolated database fixtures, Docker images, Compose configuration and documentation.
-- Removed tracked generated Python bytecode; added build-context exclusions.
+## Files changed
 
-See the working-tree diff for the complete file-level changes; no commit was performed.
+- Backend: guest cookie identity, player routes, challenge selection and
+  best-score storage, leaderboard route, guest authorization for study routes,
+  additive schema, configuration, and regression tests.
+- Frontend: editorial portfolio and writeups, name-first guest flow, quiz route
+  tree, shared session runner, challenge and leaderboard pages, responsive
+  Signal / Editorial styling, host middleware, and UI/API tests.
+- Operations: split nginx host behavior, production configuration checks,
+  Compose cookie settings, environment example, and deployment documentation.
 
-## Dataset
+## Migration required
 
-| Measure | Count |
-|---|---:|
-| Questions | 1,546 |
-| Practice Tests source | 1,203 |
-| Official Cert Guide source | 343 |
-| Multiple-answer questions | 134 |
-| Populated option E | 88 |
-| Populated option F | 31 |
-| Populated option G | 17 |
-| Diagram assets | 112 |
+No destructive or offline data migration is required. Backend startup creates
+the two new tables and ranking index with `CREATE ... IF NOT EXISTS`.
 
-Domain counts, in order: 235, 259, 331, 188, 209, 124, 200. Two successive real-book imports into a temporary bank retained all 1,546 question IDs and produced 112 diagrams. Verification used temporary databases and a copy of the bank for browser testing.
+Before deployment the backend was stopped briefly and
+`data/ccna.db.pre-guest-20260906` was created. The backup is 1,499,136 bytes.
+The migrated database retained every pre-existing row counted below.
 
-## Results
+## Final dataset counts
 
-- Backend: **219 passed**, including the real-book audit with both EPUB paths provided. Four non-failing warnings: one passlib/crypt deprecation and three BeautifulSoup XML parsing warnings.
-- Frontend: **12 passed**; production compilation and type checking passed.
-- npm audit: **0 vulnerabilities** reported at verification time.
-- Both Docker images built successfully; Compose configuration validated; backend health check passed.
-- Through nginx on loopback port 18080: health endpoint returned 200; a diagram returned 200 with image/png content.
-- Browser: registration, login, logout, session start, selection of D and F, correct grading/explanation, completion with 1/1 and 100% accuracy, updated dashboard and statistics all passed. Progress remained after logout/login.
-- Desktop and 390px mobile dashboard layouts visually checked. Browser error log was empty during the smoke flow.
-- `git diff --check` passed.
-- Production host deployment: Docker Compose is running the backend, frontend and nginx on the confirmed IPv6 host. The remote health endpoint returned 200, and the deployed bank contains 1,546 questions, 134 multiple-answer questions and 112 diagram assets.
-- Public HTTPS: `email2.my.id` resolves to the production IPv6 host. HTTP redirects to HTTPS, the landing page and health endpoint return 200, unauthenticated protected routes return 401, and the Let's Encrypt certificate is valid through 2026-12-05. Certbot's timer is active and its simulated renewal passed.
+| Measure | Before | After |
+|---|---:|---:|
+| Questions | 1,546 | 1,546 |
+| Users | 68 | 69 |
+| User progress rows | 182 | 202 |
+| Study sessions | 146 | 148 |
+| User responses | 206 | 226 |
+| Guest players | — | 1 |
+| Challenge records | — | 1 |
+| Multiple-answer questions | 134 | 134 |
+| Questions with diagrams | 112 | 112 |
 
-## Remaining boundaries and next task
+The one new user and guest player are the deployment smoke-test identity. It
+started one abandoned challenge before the backend rebuild and then completed a
+fresh 20-question challenge through the public API. Those real submissions
+created 20 progress and response rows and a score of 15 (3 correct, 17 wrong).
+No leaderboard row was inserted directly.
 
-No blocking backend issue was identified within the completed scope. Active-session persistence is deliberately unimplemented. The application is deployed at `https://email2.my.id`; Cloudflare proxying can be enabled now that the origin has a trusted certificate. The recommended next task is automated encrypted database backups with a tested restore procedure and basic uptime monitoring.
+## Test results
+
+- Backend: **232 passed, 1 optional real-book test skipped**; one Python
+  `crypt` deprecation warning from passlib.
+- Frontend: **28 passed** across 9 files.
+- Next.js production compilation and type checking passed locally and in the
+  production Docker image.
+- Compose validation, production nginx text assertions, and nginx syntax checks
+  passed.
+- The production backend, frontend, and nginx containers are running; backend
+  health is `healthy`; recent deployment logs contain no application errors.
+- Guest smoke test: player creation and `/api/player/me` succeeded; Challenge
+  returned `total_questions: 20`; all 20 answers were graded and completion
+  produced score 15, 3 correct, 17 wrong, and rank 1.
+- Public apex home, `/writeups`, quiz home, and quiz leaderboard return 200.
+  Apex `/api/leaderboard` returns 404. Wrong-host page requests redirect to
+  their canonical host.
+- At 360px, the portfolio, writeups, name prompt, returning-player quiz home,
+  challenge entry, and populated leaderboard have no horizontal overflow. The
+  quiz home also passed at 1280px, and visible keyboard focus uses the
+  signal-red outline.
+- nginx configuration is valid. The Certbot timer is enabled and active.
+  Renewal simulation passed for the certificate containing both
+  `email2.my.id` and `quiz.email2.my.id`, valid through 2026-12-06.
+- Cloudflare proxying is active for the quiz host. A forced Cloudflare-edge
+  request returned 200 with `server: cloudflare` and a `cf-ray` header.
+
+## Remaining backend gaps
+
+- Active-session persistence and restart recovery remain intentionally
+  unimplemented.
+- Guest identity has no account recovery or cross-device transfer.
+- Duplicate names are allowed; there is no name ownership, moderation, or abuse
+  control.
+- The legacy account-authentication modules remain in the source tree but are
+  no longer mounted or reachable from the application.
+- Challenge sessions abandoned before completion remain as ordinary incomplete
+  session rows.
+
+The recommended next development task is automated encrypted SQLite backups
+with a tested restore procedure and basic uptime monitoring.

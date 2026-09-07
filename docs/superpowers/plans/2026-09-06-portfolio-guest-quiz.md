@@ -842,11 +842,11 @@ git commit -m "feat: route portfolio and quiz hosts"
 - Consumes: completed Tasks 1–8 and the existing deployment at `/opt/ccna-quiz` on `2407:6ac0:3:9d:abcd::1dc`.
 - Produces: live apex portfolio, live quiz subdomain, expanded TLS certificate, migrated production database, and final verification record.
 
-- [ ] **Step 1: Update configuration and documentation**
+- [x] **Step 1: Update configuration and documentation**
 
 Document `PLAYER_COOKIE_NAME=ccna_player`, `PLAYER_COOKIE_MAX_AGE=31536000`, and `PLAYER_COOKIE_DOMAIN=quiz.email2.my.id`; pass them to the backend container. Replace registration instructions and legacy auth API rows with the name-prompt, challenge, and leaderboard flows. Keep the existing active-session persistence warning verbatim in meaning.
 
-- [ ] **Step 2: Run the complete local verification suite**
+- [x] **Step 2: Run the complete local verification suite**
 
 Run:
 
@@ -860,7 +860,7 @@ git diff --check
 
 Expected: all tests and builds pass; no whitespace errors.
 
-- [ ] **Step 3: Record pre-migration production counts and back up SQLite**
+- [x] **Step 3: Record pre-migration production counts and back up SQLite**
 
 Over the established SSH connection, stop only the backend long enough for a consistent copy, then restart it:
 
@@ -870,7 +870,7 @@ ssh root@2407:6ac0:3:9d:abcd::1dc 'cd /opt/ccna-quiz && docker compose -f docker
 
 Query and record counts for questions, users, user_progress, study_sessions, user_responses, multi-answer questions, and questions with diagrams. Confirm the backup file is nonempty.
 
-- [ ] **Step 4: Create the quiz DNS record in Cloudflare**
+- [x] **Step 4: Create the quiz DNS record in Cloudflare**
 
 Add `quiz` as an AAAA record pointing to `2407:6ac0:3:9d:abcd::1dc`, initially DNS-only for certificate issuance. Verify:
 
@@ -880,7 +880,7 @@ dig +short AAAA quiz.email2.my.id @1.1.1.1
 
 Expected: `2407:6ac0:3:9d:abcd::1dc`.
 
-- [ ] **Step 5: Expand the Let's Encrypt certificate**
+- [x] **Step 5: Expand the Let's Encrypt certificate**
 
 With the HTTP ACME configuration active, run on the server:
 
@@ -890,7 +890,7 @@ certbot certonly --webroot -w /var/www/certbot --cert-name email2.my.id --expand
 
 Run `certbot certificates` and confirm both names occur in the certificate before enabling the two TLS blocks.
 
-- [ ] **Step 6: Deploy and run the additive migration**
+- [x] **Step 6: Deploy and run the additive migration**
 
 Synchronize the reviewed repository files to `/opt/ccna-quiz` without replacing `/opt/ccna-quiz/data`, then rebuild:
 
@@ -900,7 +900,7 @@ ssh root@2407:6ac0:3:9d:abcd::1dc 'cd /opt/ccna-quiz && docker compose -f docker
 
 The backend startup runs `init_db()` and creates the two new tables. Check container health and `docker compose logs --tail=100 backend nginx` for migration or routing errors.
 
-- [ ] **Step 7: Enable the Cloudflare proxy and test both public hosts**
+- [x] **Step 7: Enable the Cloudflare proxy and test both public hosts**
 
 After direct HTTPS succeeds, enable the orange-cloud proxy for `quiz`. Verify:
 
@@ -914,19 +914,19 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://email2.my.id/api/leaderboard
 
 Expected: 200 for both sites and the quiz leaderboard; 404 for the apex API.
 
-- [ ] **Step 8: Perform a live guest challenge smoke test**
+- [x] **Step 8: Perform a live guest challenge smoke test**
 
 Use a temporary cookie jar to create a player, read `/api/player/me`, start a challenge, and confirm it reports 20 questions. Do not write a fabricated leaderboard result; complete the public leaderboard flow through the browser with real answer submissions. Confirm no login/register UI exists and an expired in-memory session shows the restart message.
 
-- [ ] **Step 9: Verify final dataset and schema counts**
+- [x] **Step 9: Verify final dataset and schema counts**
 
 Confirm production still contains 1,546 questions, 134 multi-answer questions, and 112 diagram questions. Confirm existing user/progress/session/response counts did not decrease during migration. Record new `guest_players` and `challenge_records` counts separately in `docs/verification.md`.
 
-- [ ] **Step 10: Verify renewal and responsive behavior**
+- [x] **Step 10: Verify renewal and responsive behavior**
 
 Run `nginx -t`, `certbot renew --dry-run`, and inspect the systemd Certbot timer. Exercise the apex home, writeups, name prompt, study, challenge result, and leaderboard at 360px and desktop widths. Confirm no horizontal overflow, keyboard focus is visible, and both hosts use valid Cloudflare-fronted HTTPS.
 
-- [ ] **Step 11: Write the final verification report**
+- [x] **Step 11: Write the final verification report**
 
 Update `docs/verification.md` and report these headings to the user:
 
@@ -939,7 +939,7 @@ Update `docs/verification.md` and report these headings to the user:
 
 The remaining backend gaps must explicitly include active-session persistence, account recovery/cross-device identity, name ownership/moderation, and any issue discovered during live verification. Recommend the next development task and stop.
 
-- [ ] **Step 12: Commit documentation and deployment evidence**
+- [x] **Step 12: Commit documentation and deployment evidence**
 
 ```bash
 git add README.md docs/verification.md .env.example docker-compose.yml docker-compose.production.yml
