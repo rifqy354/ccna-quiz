@@ -43,7 +43,7 @@ async def create_player(data: PlayerCreate, response: Response):
         + timedelta(seconds=settings.PLAYER_COOKIE_MAX_AGE),
         secure=settings.PLAYER_COOKIE_SECURE,
         httponly=True,
-        samesite="lax",
+        samesite=settings.PLAYER_COOKIE_SAMESITE,
         domain=settings.PLAYER_COOKIE_DOMAIN,
         path="/",
     )

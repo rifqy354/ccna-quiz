@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     PLAYER_COOKIE_MAX_AGE: int = 31_536_000
     PLAYER_COOKIE_DOMAIN: str | None = None
     PLAYER_COOKIE_SECURE: bool = False
+    PLAYER_COOKIE_SAMESITE: str = "lax"
+    CORS_ALLOW_ORIGINS: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

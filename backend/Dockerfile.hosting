@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
+
+COPY backend/app/ ./backend/app/
+COPY backend/extraction/ ./backend/extraction/
+COPY data/ ./data/
+
+RUN mkdir -p /app/data /app/data/images && chmod 755 /app/data
+
+ENV PYTHONPATH=/app/backend
+ENV DATABASE_URL=sqlite+aiosqlite:////app/data/ccna.db
+
+EXPOSE 8000
+
+CMD ["gunicorn", "app.main:app", "--bind", "0.0.0.0:8000", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--access-logfile", "-", "--error-logfile", "-"]

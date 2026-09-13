@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { api } from '../lib/api';
-beforeEach(() => { vi.restoreAllMocks(); });
+beforeEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 it('posts completion without a request body', async () => {
  const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}'));
  await api.sessions.complete(7);
@@ -20,6 +20,17 @@ it('uses same-origin cookies for player identity without authorization', async (
  expect(await api.player.me()).toEqual({name:'Rifqy'});
  expect(fetcher).toHaveBeenCalledWith('/api/player/me',{
   method:'GET',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+ });
+});
+
+it('includes cookies when the API is hosted on another origin', async () => {
+ vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api.example.test/');
+ vi.resetModules();
+ const { api: remoteApi } = await import('../lib/api');
+ const fetcher = vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({name:'Rifqy'})));
+ expect(await remoteApi.player.me()).toEqual({name:'Rifqy'});
+ expect(fetcher).toHaveBeenCalledWith('https://api.example.test/api/player/me',{
+  method:'GET',credentials:'include',headers:{'Content-Type':'application/json'},
  });
 });
 

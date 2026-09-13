@@ -1,4 +1,5 @@
 export const API_BASE=(process.env.NEXT_PUBLIC_API_URL||'').replace(/\/$/,'');
+const credentialsMode:RequestCredentials=API_BASE?'include':'same-origin';
 
 export class ApiError extends Error {
   constructor(public status:number,message:string){super(message);this.name='ApiError';}
@@ -14,7 +15,7 @@ type ApiInit={body?:object;method?:'GET'|'POST'};
 export async function cookieFetch<T>(path:string,init:ApiInit={}):Promise<T>{
   const response=await fetch(`${API_BASE}${path}`,{
     method:init.method??(init.body?'POST':'GET'),
-    credentials:'same-origin',
+    credentials:credentialsMode,
     headers:{'Content-Type':'application/json'},
     ...(init.body?{body:JSON.stringify(init.body)}:{}),
   });
